@@ -7,8 +7,9 @@
 int i = 0;
 
 // Note the return type: void*
-void* incrementingThreadFunction(pthread_mutex_t* lock){
+void* incrementingThreadFunction(void* arg){
     // TODO: increment i 1_000_000 times
+    pthread_mutex_t* lock = (pthread_mutex_t*) arg;
     for (int j = 0; j < 1000000; j++){
         pthread_mutex_lock(lock);
         i++;
@@ -17,8 +18,9 @@ void* incrementingThreadFunction(pthread_mutex_t* lock){
     return NULL;
 }
 
-void* decrementingThreadFunction(pthread_mutex_t* lock){
+void* decrementingThreadFunction(void* arg){
     // TODO: decrement i 1_000_000 times
+    pthread_mutex_t* lock = (pthread_mutex_t*) arg;
     for (int j = 0; j < 1000000; j++){
         pthread_mutex_lock(lock);
         i--;
