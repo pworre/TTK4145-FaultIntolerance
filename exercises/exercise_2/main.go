@@ -6,7 +6,6 @@ import (
 	"net"
 )
 
-
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	// Read from client
@@ -19,7 +18,7 @@ func handleConnection(conn net.Conn) {
 	fmt.Println(string(buf[:n]))
 }
 
-func udp_listen(){
+func udp_listen() {
 	ln, err := net.Listen("udp", "localhost:30000")
 	if err != nil {
 		log.Fatalln(err)
@@ -38,6 +37,30 @@ func udp_listen(){
 	}
 }
 
-func main(){
-	udp_listen()
+func main() {
+	//udp_listen()
+
+	// UDP address
+	addr, err := net.ResolveUDPAddr("udp", ":30000")
+	if err != nil {
+		log.Fatal("Could not resolve address:")
+	}
+
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		log.Fatal("Listen failed:", err)
+	}
+	defer conn.Close()
+
+	buf := make([]byte, 1024)
+	for {
+		n, remoteAddr, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		fmt.Printf("Received msg from %s: %s\n", remoteAddr, string(buf[:n]))
+	}
+
+	//net.DialUDP()
 }
