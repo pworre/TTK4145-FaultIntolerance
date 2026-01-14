@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 func udp_listen(addr *net.UDPAddr) {
@@ -32,18 +33,22 @@ func udp_listen(addr *net.UDPAddr) {
 	}
 }
 
-func udp_write(msg []byte)
+func udp_write(msg []byte) {
 	// Sender
 	sendAddr := &net.UDPAddr{
-		IP: net.ParseIP("10.100.23.11"), 
-		Port: 30000,
+		IP:   net.ParseIP("10.100.23.11"),
+		Port: 20020,
 		//Zone: "",
 	}
 
 	conn, err := net.DialUDP("udp", nil, sendAddr)
+	if err != nil {
+		log.Fatal("Could not dial up server:")
+	}
 	defer conn.Close()
 
 	conn.Write(msg)
+}
 
 func main() {
 	// UDP address
@@ -52,14 +57,16 @@ func main() {
 		log.Fatal("Could not resolve address:")
 	}
 
-	go func(){
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
 		udp_listen(addr)
 	}()
-	go func(){
-		udp_write("Hello World from GRP18\n")
-	}
-	
-
-
-
+	go func() {
+		defer wg.Done()
+		msg := []byte("Hello World from GRP18\n")
+		udp_write(msg)
+	}()
+	wg.Wait()
 }
