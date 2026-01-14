@@ -5,13 +5,14 @@ import (
 	"log"
 	"net"
 	"time"
+	"sync"
 )
 
 type MsgFormat int
 
 const (
-	VARIABLE_LENGTH = 33546
-	FIXED_LENGTH    = 34933
+	PortVariable = 33546
+	PortFixed    = 34933
 )
 
 type TCPConfig struct {
@@ -70,15 +71,31 @@ func TCP_listen(localIP string, localPort int) {
 			// Wait for client to send data
 			n_bytes, err := c.Read(buf)
 			if err != nil {
-				log.Println("TCP: Could not read: %v", err)
+				log.Println("TCP: Could not read: %w", err)
 				return
 			}
 			fmt.Printf("Received data: %s", string(buf[:n_bytes]))
+
+			// Echo
+			_, err = c.Write([]byte(msg + "\x00"))
+			if err != nil {
+				log.Printf("write error: %v", err)
+			}
 		}(conn)
 	}
 }
 
 func main() {
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func(){
+		defer wg.Done()
+		TCP_listen("10.100.23.30", 20020)	
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
 	cfg := TCPConfig{
 		ServerIP: 	"10.100.23.11",
 		ServerPort: FIXED_LENGTH,
@@ -87,9 +104,15 @@ func main() {
 	}
 
 	response, err := TCP_SendAndReceive(cfg)
-	if err != nil {
-		log.Fatal(err)
+	if err != nil {
+		log.Printf("Error: %w", err)
 	}
 
 	fmt.Printf("Response: %s", response)
+
+
+	wg.Wait()
+
+	select{}
+
 }
