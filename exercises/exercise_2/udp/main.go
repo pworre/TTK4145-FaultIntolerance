@@ -18,9 +18,6 @@ func udp_listen(addr *net.UDPAddr) {
 	// Buffer to hold received information
 	buf := make([]byte, 1024)
 	for {
-		// clear buffer
-		buf = buf[:0]
-
 		// listen to connection
 		n, remoteAddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
@@ -34,9 +31,9 @@ func udp_listen(addr *net.UDPAddr) {
 }
 
 func udp_write(msg []byte) {
-	// Sender
+	// Sender (11)
 	sendAddr := &net.UDPAddr{
-		IP:   net.ParseIP("10.100.23.11"),
+		IP:   net.ParseIP("10.100.23.255"),
 		Port: 20020,
 		//Zone: "",
 	}
@@ -52,7 +49,7 @@ func udp_write(msg []byte) {
 
 func main() {
 	// UDP address
-	addr, err := net.ResolveUDPAddr("udp", ":30000")
+	addr, err := net.ResolveUDPAddr("udp", ":20020")
 	if err != nil {
 		log.Fatal("Could not resolve address:")
 	}
@@ -65,7 +62,7 @@ func main() {
 	}()
 	go func() {
 		defer wg.Done()
-		msg := []byte("Hello World from GRP18\n")
+		msg := []byte("Hello World from GRP18!\n")
 		udp_write(msg)
 	}()
 	wg.Wait()
