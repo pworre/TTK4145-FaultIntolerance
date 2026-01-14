@@ -114,19 +114,21 @@ func TCP_Server(localPort int) {
 func handleConnection(conn *net.TCPConn) {
 	defer conn.Close()
 
-	// Receive message from local pc to server
+	// Receive message from server to GRP18
 	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		log.Fatal("Could not read from GRP18")
-	}
-	fmt.Printf("Received msg from GRP18! %s\n", string(buf[:n]))
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			log.Fatal("Could not read from server")
+		}
+		fmt.Printf("Received msg from server! Here is the message, it has been sent from my local pc to the server, been directed back, and here it is received: %s\n", string(buf[:n]))
 
-	// Send message from server to local pc
-	msg := []byte("Hello from server to GRP18!")
-	n, err = conn.Write(msg)
-	if err != nil {
-		log.Fatal("Write error from server to local: ")
+		// Send message from local pc to server
+		msg := []byte("Hello from GRP18 to server!")
+		n, err = conn.Write(msg)
+		if err != nil {
+			log.Fatal("Write error from server to local: ")
+		}
 	}
 }
 
