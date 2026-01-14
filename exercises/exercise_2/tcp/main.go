@@ -60,7 +60,7 @@ func TCP_listen(localIP string, localPort int) {
 		// OS checks acceptance-queue for new TCP-msg
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Printf("TCP acceptance-error: %w", err)
+			log.Printf("TCP acceptance-error: %v", err)
 		}
 	
 
@@ -77,7 +77,7 @@ func TCP_listen(localIP string, localPort int) {
 			fmt.Printf("Received data: %s", string(buf[:n_bytes]))
 
 			// Echo
-			_, err = c.Write([]byte(msg + "\x00"))
+			_, err = c.Write([]byte(string(buf[:n_bytes]) + "\x00"))
 			if err != nil {
 				log.Printf("write error: %v", err)
 			}
@@ -98,14 +98,14 @@ func main() {
 
 	cfg := TCPConfig{
 		ServerIP: 	"10.100.23.11",
-		ServerPort: FIXED_LENGTH,
+		ServerPort: PortFixed,
 		Message:	"Connect to: 10.100.23.30:20020\x00",
 		TimeOut: 	5 * time.Second,
 	}
 
 	response, err := TCP_SendAndReceive(cfg)
 	if err != nil {
-		log.Printf("Error: %w", err)
+		log.Printf("Error: %v", err)
 	}
 
 	fmt.Printf("Response: %s", response)
