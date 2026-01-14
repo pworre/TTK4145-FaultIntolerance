@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 type MsgFormat int
@@ -12,6 +13,26 @@ const (
 	VARIABLE_LENGTH = 33546
 	FIXED_LENGTH    = 34933
 )
+
+type TCPConfig struct {
+	ServerIP string
+	ServerPort int
+	Message string
+	TimeOut time.Duration
+}
+
+func TCP_SendAndReceive(cfg TCPConfig) (string, error) {
+	addr := fmt.Sprintf("%s:%d", cfg.ServerIP, cfg.ServerPort)
+	conn, err := net.DialTimeout("tcp", addr, cfg.TimeOut)
+	if err != nil {
+		fmt.Printf("Could not connect: %w", err)
+	}
+
+	defer conn.Close()
+
+	
+
+}
 
 func TCP_Client(format MsgFormat) {
 	// Connection-request to server
