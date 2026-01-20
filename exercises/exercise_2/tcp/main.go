@@ -50,7 +50,7 @@ func TCP_listen(localIP string, localPort int) {
 	// Create socket and binds it to IP-address + PORT. Sets socket to LISTEN-state
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatal("Listen error: %w", err)
+		log.Printf("Listen error: %v", err)
 	}
 	defer ln.Close()
 	log.Printf("STATUS: Listening on address %s", addr)
