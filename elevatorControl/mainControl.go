@@ -29,6 +29,8 @@ func main() {
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer)
 
+	var elevator elevator.Elevator = elevator.NewElevator(floor)
+
 	for {
 		select {
 		case <-requestEvent:

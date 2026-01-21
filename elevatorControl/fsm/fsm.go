@@ -12,7 +12,7 @@ func SetAllLights(elevatorChannel chan elevator.Elevator, requestLightUp chan in
 	case 1:
 		for floor := 0; floor < elevator.N_FLOORS; floor++ {
 			for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-				elevator.RequestButtonLight(floor, elevator.Button(btn), (e.Requests[floor][btn]) != 0)
+				elevator.RequestButtonLight(floor, elevator.Button(btn), e.Requests[floor][btn])
 			}
 		}
 		doneWithLights <- true
@@ -56,3 +56,4 @@ func OnFloorArrival(e elevator.Elevator, newFloor int,
 
 	return e
 }
+

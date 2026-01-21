@@ -32,8 +32,18 @@ const (
 type Elevator struct {
 	Floor     int
 	Direction MotorDirection
-	Requests  [N_FLOORS][N_BUTTONS]int
+	Requests  [N_FLOORS][N_BUTTONS]bool
 	Behaviour ElevatorBehaviour
+}
+
+func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Elevator {
+
+	return Elevator{
+		Floor:     floor,
+		Direction: dir,
+		Behaviour: behaviour,
+		// Assume all new elevators have no requests
+	}
 }
 
 func FloorIndicator(newFloor int) {
