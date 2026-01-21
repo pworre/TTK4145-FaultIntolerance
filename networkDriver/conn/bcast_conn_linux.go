@@ -9,6 +9,10 @@ import (
 	"syscall"
 )
 
+// DialBroadcastUDP creates and returns a UDP broadcast on a given port.
+//
+// The function creates UDP socket and allow multiple sockets to bind to the same port. 
+// This enables sending and receiving broadcast msg to all elevators on local network. 
 func DialBroadcastUDP(port int) net.PacketConn {
 	s, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
 	if err != nil { fmt.Println("Error: Socket:", err) }
