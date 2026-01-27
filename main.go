@@ -6,6 +6,8 @@ import (
 	"log"
 )
 
+const peersPort int = 34933
+
 func main() {
 	log.Println("Initializing Elevator....")
 	// - - - - - - Initilizing - - - - - - -
@@ -14,5 +16,10 @@ func main() {
 	peerTx := make(chan bool)
 	peerRx_state := make(chan )
 	peerRx_order := make(chan )
+
+	buttonEvent := make(chan )
+	reachFloorEvent := make(chan )
+	stopEvent := make(chan )
+	obstructionEvent := make(chan )
 
 }
