@@ -1,17 +1,18 @@
-package osx
+package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 	"time"
 )
 
 type State struct {
-	counter   int
-	isPrimary bool
+	counter   int	`json:"counter"`
+	isPrimary bool	`json:"isPrimary`
 }
 
 const (
@@ -25,10 +26,17 @@ const (
 // Receiving net.ListenUDP
 
 func spawnBackup() {
+	dir, erro := os.Getwd()
+	if erro != nil {
+		panic(erro)
+	}
+
+	cmd := fmt.Sprintf(`tell app "Terminal" to do script "cd %s; go run processPairs.go"`, dir)
+
 	err := exec.Command(
 		"osascript",
 		"-e",
-		`tell app "Terminal" to do script "go run main.go"`,
+		cmd,
 	).Run()
 
 	if err != nil {
@@ -37,9 +45,9 @@ func spawnBackup() {
 }
 
 func main() {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", port))
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
-		log.Println("Failed to resolve UDP Addr")
+		log.Println("Failed to resolve UDP receive Addr")
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
@@ -48,7 +56,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	sendConn, err := net.DialUDP("udp", nil, addr)
+	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", port))
+	if err != nil {
+		log.Println("Failed to resolve UDP send adress")
+	}
+
+	sendConn, err := net.DialUDP("udp", nil, sendAddr)
 	if err != nil {
 		log.Println("Failed to listen UDP")
 	}
@@ -60,10 +73,10 @@ func main() {
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			numBytes, udpAddr, rr := conn.ReadFromUDP(buf)
+			numBytes, _, _ := conn.ReadFromUDP(buf)
 			var incoming State
 
-			json.Unmarshal(buf[:numBytes], &incomingState)
+			json.Unmarshal(buf[:numBytes], &incoming)
 
 			if incoming.isPrimary {
 				lastPrimary = time.Now()
