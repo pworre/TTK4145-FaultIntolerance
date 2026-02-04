@@ -11,14 +11,14 @@ import (
 )
 
 type State struct {
-	counter   int	`json:"counter"`
-	isPrimary bool	`json:"isPrimary`
+	Counter   int  `json:"counter"`
+	IsPrimary bool `json:"isPrimary"`
 }
 
 const (
-	broadcastIntervall = 100 * time.Millisecond
-	primaryTimeOut     = 500 * time.Millisecond
-	port               = 3000
+	broadcastInterval = 200 * time.Millisecond
+	primaryTimeOut    = 5 * broadcastInterval
+	port              = 3000
 )
 
 // Broadcast 255.255.255.255:<port>
@@ -56,6 +56,34 @@ func main() {
 	}
 	defer conn.Close()
 
+	state := State{Counter: 0, IsPrimary: false}
+	lastPrimary := time.Now()
+
+	conn.SetReadDeadline(time.Now().Add(broadcastInterval))
+
+	// Backup loop
+	buf := make([]byte, 1024)
+	for {
+		conn.SetReadDeadline(time.Now().Add(broadcastInterval))
+
+		numBytes, _, _ := conn.ReadFromUDP(buf)
+		var incoming State
+		json.Unmarshal(buf[:numBytes], &incoming)
+
+		if incoming.IsPrimary {
+			lastPrimary = time.Now()
+			state.Counter = incoming.Counter
+		}
+
+		if time.Since(lastPrimary) > primaryTimeOut {
+			break
+		}
+	}
+
+	conn.Close()
+	spawnBackup()
+	state.IsPrimary = true
+
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", port))
 	if err != nil {
 		log.Println("Failed to resolve UDP send adress")
@@ -63,56 +91,21 @@ func main() {
 
 	sendConn, err := net.DialUDP("udp", nil, sendAddr)
 	if err != nil {
-		log.Println("Failed to listen UDP")
+		log.Println("Failed to dial up UDP")
 	}
+	defer sendConn.Close()
 
-	state := State{counter: 0, isPrimary: false}
-	lastPrimary := time.Now()
-
-	// RECEIVER
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			numBytes, _, _ := conn.ReadFromUDP(buf)
-			var incoming State
-
-			json.Unmarshal(buf[:numBytes], &incoming)
-
-			if incoming.isPrimary {
-				lastPrimary = time.Now()
-				if !state.isPrimary {
-					state.counter = incoming.counter
-				}
-			}
-		}
-	}()
-
-	ticker := time.NewTicker(1 * time.Second)
-	isBackupSpawned := false
-
+	// Primary loop
 	for {
-		select {
-		case <-ticker.C:
-			if state.isPrimary {
-				state.counter++
-				fmt.Printf("Counter: %d\n", state.counter)
-			}
+		state.Counter++
+		fmt.Printf("Counter: %d\n", state.Counter)
 
-			// Backup becomes primary if timeout
-			if time.Since(lastPrimary) > primaryTimeOut {
-				state.isPrimary = true
-				if !isBackupSpawned {
-					spawnBackup()
-					isBackupSpawned = true
-				}
-
-			}
-
-			data, err := json.Marshal(state)
-			if err != nil {
-				log.Printf("Failed to make json of state to send")
-			}
-			sendConn.Write(data)
+		data, err := json.Marshal(state)
+		if err != nil {
+			log.Printf("Failed to make json of state to send")
 		}
+		sendConn.Write(data)
+
+		time.Sleep(broadcastInterval)
 	}
 }
