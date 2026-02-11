@@ -40,8 +40,6 @@ type Elevator struct {
 }
 
 func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Elevator {
-	net.ResolveUDPAddr()
-
 	return Elevator{
 		Floor:     floor,
 		Direction: dir,

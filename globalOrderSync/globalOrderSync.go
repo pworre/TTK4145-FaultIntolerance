@@ -13,7 +13,7 @@ type globalOrders struct {
 	hallOrders map[int]elevator.MotorDirection
 
 	// STRUCT OF MAP: 	[ID of responsible elev : floor]
-	cabOrders map[int]int
+	cabOrders map[string]int
 }
 
 type msgState struct {
