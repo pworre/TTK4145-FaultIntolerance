@@ -1,16 +1,24 @@
 package main
 
 import (
-	"network/peers"
+	"networkDriver/peers"
+	"elevator_project/config"
+	"elevatorControl/elevator"
+	"elevatorDriver/elevio"
 	"fmt"
 	"log"
+	"flag"
 )
 
 const peersPort int = 34933
 
 func main() {
-	log.Println("Initializing Elevator....")
+	cfg := config.ParseFlag()
+
 	// - - - - - - Initilizing - - - - - - -
+	log.Println("Initializing Elevator %d with port %d", cfg.ID, cfg.Port)
+	
+
 
 	// - - - - - - Channels - - - - - - - - -
 	peerTx := make(chan bool)

@@ -1,6 +1,9 @@
 package elevator
 
-import "elevatorDriver/elevio"
+import (
+	"elevatorDriver/elevio"
+	"net"
+)
 
 const N_FLOORS = 4
 const N_BUTTONS = 3
@@ -30,13 +33,14 @@ const (
 )
 
 type Elevator struct {
-	Floor     int
-	Direction MotorDirection
-	Requests  [N_FLOORS][N_BUTTONS]bool
-	Behaviour ElevatorBehaviour
+	Floor     	int
+	Direction 	MotorDirection
+	Requests  	[N_FLOORS][N_BUTTONS]bool
+	Behaviour 	ElevatorBehaviour
 }
 
 func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Elevator {
+	net.ResolveUDPAddr()
 
 	return Elevator{
 		Floor:     floor,
