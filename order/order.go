@@ -11,6 +11,20 @@ import (
 )
 
 // ? Peer routing table [1, 2, 3, 4, ..., n] - Makes order of who transmits to who
+/*
+This file contains all struct and functions for order syncronization. 
+Each node is sharing a OrderToSyncMap which is a map of their orders to be synced. 
+They all share the confirmed list of orders "OrdersConfirmed"
+
+The struct of the OrderToSyncMap is:
+
+{
+        Order{ID:"1", OrderType:HALL, OrderFloor:2, State:COS_UNCONFIRMED},
+        Order{ID:"2", Floor:3, State:Pending},
+        Order{ID:"3", Floor:1, State:Completed},
+}
+*/
+
 
 type orderType int 
 const (
@@ -44,7 +58,7 @@ type OrderNetworkMsg struct {
 
 const bcast_PORT = 25532
 
-func orderSync(ordersConfirmed chan []Order, orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int) {
+func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int) {
 	cfg := config.ParseFlag()
 	myID := cfg.ID
 	
@@ -62,15 +76,17 @@ func orderSync(ordersConfirmed chan []Order, orderSyncBuffer chan Order, buttonE
 	}
 
 	// ! TEMPORARY VARIABLES FOR CODING ONLY
-	orderList := make([]Order, 0)
+	confirmedOrders := make([]Order, 0)
 	currentOrder := Order{}
-	receivedOrdersToSync := make(map[string][]Order) // This is a map with key as PeerID with Order
+	// ! BE AWARE ! JUST ASSIGNED A EMPTY ORDER
+	confirmedOrders = append(confirmedOrders, currentOrder)
+
 	nextFloor := 4
 
-	orderToSyncMap := make(map[string]Order)
-	orderToSyncMap[myID] = orderToSync
+	orderToSyncMap := make(map[string][]Order)
+	orderToSyncMap[myID] = append(myID, orderToSync)
 
-	orderNetworkMsg := OrderNetworkMsg{
+	msgTransmitting := OrderNetworkMsg{
 		PeerID: 			myID, 
 		OrderToSyncMap:		orderToSyncMap,
 		OrdersConfirmed: 	nil,
@@ -105,9 +121,9 @@ func orderSync(ordersConfirmed chan []Order, orderSyncBuffer chan Order, buttonE
 			}
 			if orderToHandle.CurrentOrderState == COS_UNCONFIRMED_DELETION {
 				// TODO: Send orderToSync on network
-				orderNetworkMsg.OrderToSync = orderToHandle
-				orderNetworkMsg.StateCounter += 1
-				networkTx <-orderNetworkMsg
+				msgTransmitting.OrderToSyncMap[myID][myID] = orderToHandle
+				msgTransmitting.StateCounter += 1
+				networkTx <-msgTransmitting
 			}
 
 		case networkOrders := <-ordersConfirmed:
@@ -115,14 +131,16 @@ func orderSync(ordersConfirmed chan []Order, orderSyncBuffer chan Order, buttonE
 
 		case msgReceived := <-networkRx:
 			// TODO: Save to a map
-			receivedOrdersToSync[msgReceived.PeerID] = msgReceived.OrderToSyncMap
+			if msgReceived.StateCounter > msgTransmitting.StateCounter {
+				orderToSyncMap = msgReceived.OrderToSyncMap
+				confirmedOrders = msgReceived.OrdersConfirmed
+			}
+
 			// ! PROBLEMET NÅ ER AT VI PRØVER Å ASSIGNE MAP TIL ET MAP. HER MÅ NOE FIKSES OG HA OVERSIKT OVER HVEM SOM HAR NYEST AV HVA!!!
+		
 		}
 	}
 }
-
-
-
 
 
 
