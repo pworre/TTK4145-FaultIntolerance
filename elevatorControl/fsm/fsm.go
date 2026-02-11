@@ -6,8 +6,7 @@ import (
 	"fmt"
 )
 
-func SetAllLights(elevatorChannel chan elevator.Elevator, requestLightUp chan int, doneWithLights chan bool) {
-	e := <-elevatorChannel
+func SetAllLights(e elevator.Elevator, requestLightUp chan int, doneWithLights chan bool) {
 	switch <-requestLightUp {
 	case 1:
 		for floor := 0; floor < elevator.N_FLOORS; floor++ {
@@ -25,7 +24,7 @@ func SetAllLights(elevatorChannel chan elevator.Elevator, requestLightUp chan in
 
 func OnFloorArrival(e elevator.Elevator, newFloor int,
 	elevatorChannel chan elevator.Elevator,
-	stopInactivityTimer chan int,
+	stopInactivityTimer chan bool,
 	requestLightUp chan int,
 	resetDoorTimer chan bool) elevator.Elevator {
 
@@ -37,7 +36,7 @@ func OnFloorArrival(e elevator.Elevator, newFloor int,
 	switch e.Behaviour {
 	case elevator.EB_Moving:
 		if requests.ShouldStop(e) {
-			stopInactivityTimer <- 1
+			stopInactivityTimer <- true
 			elevator.SetMotorDirection(elevator.D_Stop)
 			elevator.DoorLight(true)
 			e = requests.ClearAtCurrentFloor(e)
@@ -57,3 +56,33 @@ func OnFloorArrival(e elevator.Elevator, newFloor int,
 	return e
 }
 
+func OnDoorTimeout(e elevator.Elevator, resetDoorTimer chan bool) {
+	fmt.Println("Timeout\n")
+
+	switch e.Behaviour {
+    case elevator.EB_DoorOpen:
+        var pair requests.DirectionBehaviourPair
+		pair = requests.ChooseDirection(e);
+        e.Direction = pair.Direction;
+        e.Behaviour = pair.Behaviour;
+        
+        switch e.Behaviour {
+        case elevator.EB_DoorOpen:
+            resetDoorTimer <- true
+            e = requests.ClearAtCurrentFloor(e);
+            SetAllLights(e);
+            break;
+        case elevator.EB_Moving:
+        case elevator.EB_Idle:
+            elevator.DoorLight(false);
+            elevator.MotorDirection(e.Direction);
+            break;
+        }
+        
+        break;
+    default:
+        break;
+    }
+    
+    printf("\nNew state:\n");
+}

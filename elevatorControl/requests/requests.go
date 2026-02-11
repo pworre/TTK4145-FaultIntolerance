@@ -2,6 +2,11 @@ package requests
 
 import "elevator_project/elevatorControl/elevator"
 
+type DirectionBehaviourPair struct {
+	Direction elevator.MotorDirection
+	Behaviour elevator.ElevatorBehaviour
+}
+
 func requestsBelow(e elevator.Elevator) bool {
 	for f := 0; f < e.Floor; f++ {
 		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
@@ -19,6 +24,15 @@ func requestsAbove(e elevator.Elevator) bool {
 			if e.Requests[f][btn] {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func requestsHere(e elevator.Elevator) bool {
+	for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+		if e.Requests[e.Floor][btn] {
+			return true
 		}
 	}
 	return false
@@ -63,4 +77,45 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 		e.Requests[e.Floor][elevator.B_HallDown] = false
 	}
 	return e
+}
+
+func ChooseDirection(e elevator.Elevator) DirectionBehaviourPair {
+	switch e.Direction {
+
+	case elevator.D_Up:
+		if requestsAbove(e) {
+			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+		} else if requestsHere(e) {
+			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_DoorOpen}
+		} else if requestsBelow(e) {
+			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+		} else {
+			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+		}
+
+	case elevator.D_Down:
+		if requestsBelow(e) {
+			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+		} else if requestsHere(e) {
+			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_DoorOpen}
+		} else if requestsAbove(e) {
+			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+		} else {
+			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+		}
+
+	case elevator.D_Stop:
+		if requestsHere(e) {
+			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_DoorOpen}
+		} else if requestsAbove(e) {
+			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+		} else if requestsBelow(e) {
+			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+		} else {
+			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+		}
+
+	default:
+		return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+	}
 }

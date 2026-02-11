@@ -16,8 +16,8 @@ type State struct {
 }
 
 const (
-	broadcastInterval = 200 * time.Millisecond
-	primaryTimeOut    = 5 * broadcastInterval
+	broadcastInterval = 1000 * time.Millisecond
+	primaryTimeOut    = 3 * broadcastInterval
 	port              = 3000
 )
 

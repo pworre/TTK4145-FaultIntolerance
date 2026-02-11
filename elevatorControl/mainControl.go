@@ -42,6 +42,8 @@ func main() {
 			<-doneWithLights // Block until lights get turned on or we keep moving
 
 		case <-inactivityTimer.C:
+			stopInactivityTimer <- true
+			fsm.OnDoorTimeout()
 			//TODO: Handle timeOut
 		}
 	}
