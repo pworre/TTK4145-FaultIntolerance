@@ -45,13 +45,13 @@ func main() {
 	// - - - - - - Initializing - - - - - - -
 
 	thisElevator := elevator.NewUninitializedElevator()
-
+	fmt.Println("1")
 	if elevator.FloorSensor() == -1 {
 		elevator.SetMotorDirection(elevator.D_Down)
 		thisElevator.Direction = elevator.D_Down
 		thisElevator.Behaviour = elevator.EB_Moving
 	}
-
+	fmt.Println("2")
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
@@ -61,6 +61,7 @@ func main() {
 
 	// Finite state machine action handling
 	for {
+		fmt.Println("Loop")
 		select {
 		case newFloor := <-newFloorUpdate:
 			elevator.FloorIndicator(newFloor)
