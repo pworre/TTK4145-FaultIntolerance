@@ -57,7 +57,7 @@ func main() {
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
 
 	// Finite state machine transition logic
-	go fsm.EventLoopTransitionLogic(thisElevator, elevatorShouldStop, requestEvent, floorEvent, newFloorUpdate, doorTimeout, changeDirectionBehaviour, keepDoorOpen, openDoor, closeDoor, addRequest, changeMotorDirection)
+	go fsm.EventLoopTransitionLogic(&thisElevator, elevatorShouldStop, requestEvent, floorEvent, newFloorUpdate, doorTimeout, changeDirectionBehaviour, keepDoorOpen, openDoor, closeDoor, addRequest, changeMotorDirection)
 
 	// Finite state machine action handling
 	for {

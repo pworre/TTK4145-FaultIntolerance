@@ -5,7 +5,7 @@ import (
 	"elevatorControl/requests"
 )
 
-func EventLoopTransitionLogic(elevator elevator.Elevator, elevatorShouldStop chan bool,
+func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop chan bool,
 							requestEvent chan elevator.ButtonEvent, floorEvent chan int,
 							newFloorUpdate chan int, doorTimeout chan bool,
 							changeDirectionBehaviour chan requests.DirectionBehaviourPair,
@@ -15,15 +15,15 @@ func EventLoopTransitionLogic(elevator elevator.Elevator, elevatorShouldStop cha
 	for {
 		select {
 		case newRequest := <-requestEvent:
-			OnRequestButtonPress(elevator, newRequest.Floor, newRequest.Button, changeDirectionBehaviour, keepDoorOpen, openDoor, addRequest, changeMotorDirection)
+			OnRequestButtonPress(*elevator, newRequest.Floor, newRequest.Button, changeDirectionBehaviour, keepDoorOpen, openDoor, addRequest, changeMotorDirection)
 
 		case newFloor := <-floorEvent:
 			newFloorUpdate <- newFloor
-			OnFloorArrival(elevator, elevatorShouldStop)
+			OnFloorArrival(*elevator, elevatorShouldStop)
 
 		case <-doorTimeout:
 			// ? Maybe add stopDoorTimer
-			OnDoorTimeout(elevator, changeDirectionBehaviour, keepDoorOpen, closeDoor)
+			OnDoorTimeout(*elevator, changeDirectionBehaviour, keepDoorOpen, closeDoor)
 		}
 	}
 }
