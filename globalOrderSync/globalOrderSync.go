@@ -1,8 +1,6 @@
 package globalordersync
 
 import (
-	"fmt"
-	"log"
 	"elevatorControl/elevator"
 )
 

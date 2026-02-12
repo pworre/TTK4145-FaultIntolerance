@@ -2,7 +2,6 @@ package elevator
 
 import (
 	"elevatorDriver/elevio"
-	"net"
 )
 
 const N_FLOORS = 4
@@ -24,6 +23,11 @@ const (
 	B_Cab      = 2
 )
 
+type ButtonEvent struct {
+	Floor  int
+	Button Button
+}
+
 type ElevatorBehaviour int
 
 const (
@@ -33,15 +37,15 @@ const (
 )
 
 type Elevator struct {
-	Floor     	int
-	Direction 	MotorDirection
-	Requests  	[N_FLOORS][N_BUTTONS]bool
-	Behaviour 	ElevatorBehaviour
+	Floor     int
+	Direction MotorDirection
+	Requests  [N_FLOORS][N_BUTTONS]bool
+	Behaviour ElevatorBehaviour
 }
 
 func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Elevator {
-	net.ResolveUDPAddr()
-
+	//net.ResolveUDPAddr()
+	//elevio.Init()
 	return Elevator{
 		Floor:     floor,
 		Direction: dir,
@@ -50,6 +54,27 @@ func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Ele
 	}
 }
 
+func NewUninitializedElevator() Elevator {
+	//net.ResolveUDPAddr()
+	elevio.Init("localhost:15657", N_FLOORS)
+	return Elevator{
+		Floor:     -1,
+		Direction: D_Stop,
+		Behaviour: EB_Idle,
+	}
+}
+
+func SetAllLights(e Elevator) {
+	for floor := 0; floor < N_FLOORS; floor++ {
+		for btn := 0; btn < N_BUTTONS; btn++ {
+			RequestButtonLight(floor, Button(btn), e.Requests[floor][btn])
+		}
+	}
+}
+
+func FloorSensor() int {
+	return elevio.GetFloor()
+}
 func FloorIndicator(newFloor int) {
 	elevio.SetFloorIndicator(newFloor)
 }

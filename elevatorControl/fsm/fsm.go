@@ -1,88 +1,101 @@
 package fsm
 
 import (
-	"elevator_project/elevatorControl/elevator"
-	"elevator_project/elevatorControl/requests"
-	"fmt"
+	"elevatorControl/elevator"
+	"elevatorControl/requests"
 )
 
-func SetAllLights(e elevator.Elevator, requestLightUp chan int, doneWithLights chan bool) {
-	switch <-requestLightUp {
-	case 1:
-		for floor := 0; floor < elevator.N_FLOORS; floor++ {
-			for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-				elevator.RequestButtonLight(floor, elevator.Button(btn), e.Requests[floor][btn])
-			}
+func EventLoopTransitionLogic(elevator elevator.Elevator, elevatorShouldStop chan bool,
+							requestEvent chan elevator.ButtonEvent, floorEvent chan int,
+							newFloorUpdate chan int, doorTimeout chan bool,
+							changeDirectionBehaviour chan requests.DirectionBehaviourPair,
+							keepDoorOpen chan bool, openDoor chan bool, closeDoor chan bool, addRequest chan elevator.ButtonEvent,
+							changeMotorDirection chan elevator.MotorDirection) {
+
+	for {
+		select {
+		case newRequest := <-requestEvent:
+			OnRequestButtonPress(elevator, newRequest.Floor, newRequest.Button, changeDirectionBehaviour, keepDoorOpen, openDoor, addRequest, changeMotorDirection)
+
+		case newFloor := <-floorEvent:
+			newFloorUpdate <- newFloor
+			OnFloorArrival(elevator, elevatorShouldStop)
+
+		case <-doorTimeout:
+			// ? Maybe add stopDoorTimer
+			OnDoorTimeout(elevator, changeDirectionBehaviour, keepDoorOpen, closeDoor)
 		}
-		doneWithLights <- true
-		return
-	case 0:
-		doneWithLights <- true
-		return
 	}
 }
 
-func OnFloorArrival(e elevator.Elevator, newFloor int,
-	elevatorChannel chan elevator.Elevator,
-	stopInactivityTimer chan bool,
-	requestLightUp chan int,
-	resetDoorTimer chan bool) elevator.Elevator {
-
-	fmt.Printf("Arrived at floor %d\n", newFloor)
-
-	elevator.FloorIndicator(newFloor)
-	e.Floor = newFloor
+func OnFloorArrival(e elevator.Elevator, elevatorShouldStop chan bool) {
 
 	switch e.Behaviour {
 	case elevator.EB_Moving:
 		if requests.ShouldStop(e) {
-			stopInactivityTimer <- true
-			elevator.SetMotorDirection(elevator.D_Stop)
-			elevator.DoorLight(true)
-			e = requests.ClearAtCurrentFloor(e)
-			resetDoorTimer <- true
-			elevatorChannel <- e
-			requestLightUp <- 0
-			e.Behaviour = elevator.EB_DoorOpen
-		} else {
-			requestLightUp <- 0
+			elevatorShouldStop <- true
 		}
-	default:
-		requestLightUp <- 0
 	}
-
-	fmt.Println("Exiting floor arrival function")
-
-	return e
 }
 
-func OnDoorTimeout(e elevator.Elevator, resetDoorTimer chan bool) {
-	fmt.Println("Timeout\n")
+func OnDoorTimeout(e elevator.Elevator, changeDirectionBehaviour chan requests.DirectionBehaviourPair,
+					keepDoorOpen chan bool, closeDoor chan bool) {
 
 	switch e.Behaviour {
-    case elevator.EB_DoorOpen:
-        var pair requests.DirectionBehaviourPair
-		pair = requests.ChooseDirection(e);
-        e.Direction = pair.Direction;
-        e.Behaviour = pair.Behaviour;
-        
-        switch e.Behaviour {
-        case elevator.EB_DoorOpen:
-            resetDoorTimer <- true
-            e = requests.ClearAtCurrentFloor(e);
-            SetAllLights(e);
-            break;
-        case elevator.EB_Moving:
-        case elevator.EB_Idle:
-            elevator.DoorLight(false);
-            elevator.MotorDirection(e.Direction);
-            break;
-        }
-        
-        break;
-    default:
-        break;
-    }
-    
-    printf("\nNew state:\n");
+	case elevator.EB_DoorOpen:
+		e.Direction, e.Behaviour = requests.ChooseDirection(e)
+		changeDirectionBehaviour <- requests.DirectionBehaviourPair{e.Direction, e.Behaviour}
+		switch e.Behaviour {
+		case elevator.EB_DoorOpen:
+			keepDoorOpen <- true
+			break
+		case elevator.EB_Moving:
+		case elevator.EB_Idle:
+			closeDoor <- true
+			break
+		}
+
+		break
+	default:
+		break
+	}
+}
+
+func OnRequestButtonPress(e elevator.Elevator, btnFloor int, btnType elevator.Button,
+						changeDirectionBehaviour chan requests.DirectionBehaviourPair,
+						keepDoorOpen chan bool, openDoor chan bool, addRequest chan elevator.ButtonEvent,
+						changeMotorDirection chan elevator.MotorDirection) {
+
+	switch e.Behaviour {
+	case elevator.EB_DoorOpen:
+		if requests.ShouldClearImmediately(e, btnFloor, btnType) {
+			keepDoorOpen <- true
+		} else {
+			addRequest <- elevator.ButtonEvent{btnFloor, btnType}
+		}
+		break
+
+	case elevator.EB_Moving:
+		addRequest <- elevator.ButtonEvent{btnFloor, btnType}
+		break
+
+	case elevator.EB_Idle:
+		addRequest <- elevator.ButtonEvent{btnFloor, btnType}
+
+		e.Direction, e.Behaviour = requests.ChooseDirection(e)
+		changeDirectionBehaviour <- requests.DirectionBehaviourPair{e.Direction, e.Behaviour}
+		switch e.Behaviour {
+		case elevator.EB_DoorOpen:
+			openDoor <- true
+			break
+
+		case elevator.EB_Moving:
+			changeMotorDirection <- e.Direction
+			break
+
+		case elevator.EB_Idle:
+			break
+		}
+		break
+	}
 }

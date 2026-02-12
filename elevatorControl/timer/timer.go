@@ -13,7 +13,7 @@ func initTimers() (*time.Timer, *time.Timer) {
 	return doorTimer, inactivityTimer
 }
 
-func Timers(stopInactivityTimer chan bool, resetDoorTimer chan bool) {
+func Timers(stopInactivityTimer chan bool, resetDoorTimer chan bool, doorTimeout chan bool) {
 	doorTimer, inactivityTimer := initTimers()
 	for {
 		select {
@@ -21,6 +21,8 @@ func Timers(stopInactivityTimer chan bool, resetDoorTimer chan bool) {
 			inactivityTimer.Stop()
 		case <-resetDoorTimer:
 			doorTimer.Reset(DOOR_OPEN_DURATION)
+		case <-doorTimer.C:
+			doorTimeout <- true
 		}
 	}
 }

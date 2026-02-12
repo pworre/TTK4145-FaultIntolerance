@@ -1,7 +1,8 @@
 package requests
 
-import "elevator_project/elevatorControl/elevator"
+import "elevatorControl/elevator"
 
+// Needed for message passing on channel between fsm and main
 type DirectionBehaviourPair struct {
 	Direction elevator.MotorDirection
 	Behaviour elevator.ElevatorBehaviour
@@ -55,6 +56,14 @@ func ShouldStop(e elevator.Elevator) bool {
 	}
 }
 
+func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.Button) bool {
+	return e.Floor == btnFloor &&
+			((e.Direction == elevator.D_Up && btnType == elevator.B_HallUp) ||
+			(e.Direction == elevator.D_Down && btnType == elevator.B_HallDown) ||
+			e.Direction == elevator.D_Stop ||
+			(btnType == elevator.B_Cab))
+}
+
 func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	e.Requests[e.Floor][elevator.B_Cab] = false
 	switch e.Direction {
@@ -79,43 +88,41 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	return e
 }
 
-func ChooseDirection(e elevator.Elevator) DirectionBehaviourPair {
-	switch e.Direction {
 
+
+func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.ElevatorBehaviour) {
+	switch e.Direction {
 	case elevator.D_Up:
 		if requestsAbove(e) {
-			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+			return elevator.D_Up, elevator.EB_Moving
 		} else if requestsHere(e) {
-			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_DoorOpen}
+			return elevator.D_Down, elevator.EB_DoorOpen
 		} else if requestsBelow(e) {
-			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+			return elevator.D_Down, elevator.EB_Moving
 		} else {
-			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+			return elevator.D_Stop, elevator.EB_Idle
 		}
-
 	case elevator.D_Down:
 		if requestsBelow(e) {
-			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+			return elevator.D_Down, elevator.EB_Moving
 		} else if requestsHere(e) {
-			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_DoorOpen}
+			return elevator.D_Up, elevator.EB_DoorOpen
 		} else if requestsAbove(e) {
-			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+			return elevator.D_Up, elevator.EB_Moving
 		} else {
-			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+			return elevator.D_Stop, elevator.EB_Idle
 		}
-
 	case elevator.D_Stop:
 		if requestsHere(e) {
-			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_DoorOpen}
+			return elevator.D_Stop, elevator.EB_DoorOpen
 		} else if requestsAbove(e) {
-			return DirectionBehaviourPair{elevator.D_Up, elevator.EB_Moving}
+			return elevator.D_Up, elevator.EB_Moving
 		} else if requestsBelow(e) {
-			return DirectionBehaviourPair{elevator.D_Down, elevator.EB_Moving}
+			return elevator.D_Down, elevator.EB_Moving
 		} else {
-			return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+			return elevator.D_Stop, elevator.EB_Idle
 		}
-
 	default:
-		return DirectionBehaviourPair{elevator.D_Stop, elevator.EB_Idle}
+		return elevator.D_Stop, elevator.EB_Idle
 	}
 }

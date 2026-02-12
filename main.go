@@ -1,6 +1,7 @@
 package main
 
 import (
+	/*
 	"networkDriver/peers"
 	"elevator_project/config"
 	"elevatorControl/elevator"
@@ -8,11 +9,15 @@ import (
 	"fmt"
 	"log"
 	"flag"
+	*/
+	"elevator_project/elevatorControl/mainControl"
 )
 
 const peersPort int = 34933
 
 func main() {
+	mainControl.mainControl()
+	/*
 	cfg := config.ParseFlag()
 
 	// - - - - - - Initilizing - - - - - - -
@@ -29,5 +34,5 @@ func main() {
 	reachFloorEvent := make(chan )
 	stopEvent := make(chan )
 	obstructionEvent := make(chan )
-
+	*/
 }
