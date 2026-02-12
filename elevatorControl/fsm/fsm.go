@@ -77,6 +77,7 @@ func OnRequestButtonPress(e elevator.Elevator, btnFloor int, btnType elevator.Bu
 			keepDoorOpen <- true
 		} else {
 			addRequest <- elevator.ButtonEvent{btnFloor, btnType}
+			e.Requests[btnFloor][btnType] = true
 		}
 		break
 
