@@ -82,6 +82,7 @@ func OnRequestButtonPress(e elevator.Elevator, btnFloor int, btnType elevator.Bu
 
 	case elevator.EB_Moving:
 		addRequest <- elevator.ButtonEvent{btnFloor, btnType}
+		e.Requests[btnFloor][btnType] = true
 		break
 
 	case elevator.EB_Idle:
