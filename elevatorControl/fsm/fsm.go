@@ -81,6 +81,20 @@ func OnRequestButtonPress(e elevator.Elevator, btnFloor int, btnType elevator.Bu
 		} else {
 			addRequest <- elevator.ButtonEvent{btnFloor, btnType}
 			e.Requests[btnFloor][btnType] = true
+			e.Direction, e.Behaviour = requests.ChooseDirection(e)
+			changeDirectionBehaviour <- requests.DirectionBehaviourPair{e.Direction, e.Behaviour}
+			switch e.Behaviour {
+			case elevator.EB_DoorOpen:
+				openDoor <- true
+				break
+
+			case elevator.EB_Moving:
+				changeMotorDirection <- e.Direction
+				break
+
+			case elevator.EB_Idle:
+				break
+			}
 		}
 		break
 
