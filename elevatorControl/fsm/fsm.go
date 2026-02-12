@@ -25,7 +25,7 @@ func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop ch
 
 		case <-doorTimeout:
 			// ? Maybe add stopDoorTimer
-			OnDoorTimeout(*elevator, changeDirectionBehaviour, keepDoorOpen, closeDoor)
+			OnDoorTimeout(*elevator, changeDirectionBehaviour, changeMotorDirection, keepDoorOpen, closeDoor)
 		}
 	}
 }
@@ -41,6 +41,7 @@ func OnFloorArrival(e elevator.Elevator, newFloor int, elevatorShouldStop chan b
 }
 
 func OnDoorTimeout(e elevator.Elevator, changeDirectionBehaviour chan requests.DirectionBehaviourPair,
+	changeMotorDirection chan elevator.MotorDirection,
 	keepDoorOpen chan bool, closeDoor chan bool) {
 
 	switch e.Behaviour {
@@ -54,6 +55,8 @@ func OnDoorTimeout(e elevator.Elevator, changeDirectionBehaviour chan requests.D
 			keepDoorOpen <- true
 			break
 		case elevator.EB_Moving:
+			closeDoor <- true
+			changeMotorDirection <- e.Direction
 		case elevator.EB_Idle:
 			fmt.Println("Jeg tror ikke dette skjer.....")
 			closeDoor <- true
