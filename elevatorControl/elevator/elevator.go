@@ -72,6 +72,17 @@ func SetAllLights(e Elevator) {
 	}
 }
 
+func PollButtons(buttonEvent chan ButtonEvent) {
+	btnEvent := make(chan elevio.ButtonEvent)
+	go elevio.PollButtons(btnEvent)
+	for {
+		event := <-btnEvent
+		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
+	}
+}
+func PollFloorSensor(floorEvent chan int) {
+	elevio.PollFloorSensor(floorEvent)
+}
 func FloorSensor() int {
 	return elevio.GetFloor()
 }

@@ -42,6 +42,8 @@ func main() {
 	resetDoorTimer := make(chan bool)
 	stopInactivityTimer := make(chan bool)
 
+
+
 	// - - - - - - Initializing - - - - - - -
 
 	thisElevator := elevator.NewUninitializedElevator()
@@ -55,6 +57,8 @@ func main() {
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
+	go elevator.PollButtons(requestEvent)
+	go elevator.PollFloorSensor(floorEvent)
 
 	// Finite state machine transition logic
 	go fsm.EventLoopTransitionLogic(&thisElevator, elevatorShouldStop, requestEvent, floorEvent, newFloorUpdate, doorTimeout, changeDirectionBehaviour, keepDoorOpen, openDoor, closeDoor, addRequest, changeMotorDirection)

@@ -3,6 +3,7 @@ package fsm
 import (
 	"elevatorControl/elevator"
 	"elevatorControl/requests"
+	"fmt"
 )
 
 func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop chan bool,
@@ -13,6 +14,7 @@ func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop ch
 							changeMotorDirection chan elevator.MotorDirection) {
 
 	for {
+		fmt.Println("fsmLoop")
 		select {
 		case newRequest := <-requestEvent:
 			OnRequestButtonPress(*elevator, newRequest.Floor, newRequest.Button, changeDirectionBehaviour, keepDoorOpen, openDoor, addRequest, changeMotorDirection)
