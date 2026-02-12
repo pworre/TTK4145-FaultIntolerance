@@ -21,7 +21,7 @@ func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop ch
 
 		case newFloor := <-floorEvent:
 			newFloorUpdate <- newFloor
-			OnFloorArrival(*elevator, elevatorShouldStop)
+			OnFloorArrival(*elevator, newFloor, elevatorShouldStop)
 
 		case <-doorTimeout:
 			// ? Maybe add stopDoorTimer
@@ -30,8 +30,8 @@ func EventLoopTransitionLogic(elevator *elevator.Elevator, elevatorShouldStop ch
 	}
 }
 
-func OnFloorArrival(e elevator.Elevator, elevatorShouldStop chan bool) {
-
+func OnFloorArrival(e elevator.Elevator, newFloor int, elevatorShouldStop chan bool) {
+	e.Floor = newFloor
 	switch e.Behaviour {
 	case elevator.EB_Moving:
 		if requests.ShouldStop(e) {
