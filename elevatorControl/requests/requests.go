@@ -2,6 +2,7 @@ package requests
 
 import "elevatorControl/elevator"
 
+// ! Remove
 // Needed for message passing on channel between fsm and main
 type DirectionBehaviourPair struct {
 	Direction elevator.MotorDirection
@@ -58,7 +59,7 @@ func ShouldStop(e elevator.Elevator) bool {
 
 func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.Button) bool {
 	return e.Floor == btnFloor &&
-			((e.Direction == elevator.D_Up && btnType == elevator.B_HallUp) ||
+		((e.Direction == elevator.D_Up && btnType == elevator.B_HallUp) ||
 			(e.Direction == elevator.D_Down && btnType == elevator.B_HallDown) ||
 			e.Direction == elevator.D_Stop ||
 			(btnType == elevator.B_Cab))
@@ -80,6 +81,7 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 		e.Requests[e.Floor][elevator.B_HallDown] = false
 
 	case elevator.D_Stop:
+		fallthrough
 
 	default:
 		e.Requests[e.Floor][elevator.B_HallUp] = false
@@ -87,8 +89,6 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	}
 	return e
 }
-
-
 
 func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.ElevatorBehaviour) {
 	switch e.Direction {

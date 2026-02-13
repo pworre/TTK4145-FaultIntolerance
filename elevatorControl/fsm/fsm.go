@@ -44,7 +44,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int, setFloorIndica
 		if requests.ShouldStop(nextState) {
 			//elevatorShouldStop <- true // ! Change to action!
 			changeMotorDirection <- elevator.D_Stop
-			nextState.Direction = elevator.D_Stop
+			//nextState.Direction = elevator.D_Stop
 			openDoor <- true
 			nextState = requests.ClearAtCurrentFloor(nextState)
 			setLights <- nextState.Requests
