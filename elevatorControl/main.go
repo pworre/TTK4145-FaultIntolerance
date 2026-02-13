@@ -7,32 +7,37 @@ import (
 	"fmt"
 )
 
-// TODO: INIT
-// ? Question
-// ! Be aware
+// - - - - - - Overview - - - - - - - - -
+
+// This package contains an implementation for controlling a single elevator as a finite state machine,
+// using message passing between separate threads
+//
+// The hardware polling, timer instance and fsm logic all run on separate threads,
+// using message passing from the hardware and the timer to the fsm loop to signal events for triggering a state transition.
+//
+// Using message passing allows all fsm helper functions to be pure, since they can calculate the state transitions,
+// signal the outputted actions on message channels and return the transitioned states to the main fsm loop.
+//
+// The action outputs are handled in main, which in turn performs the actions by messaging the timer and elevator packages,
+// which actually do the work of setting the timers and executing the elevator commands.
+//
+// Structuring the program this way allows all the behaviour logic to be entirely contained within the fsm package,
+// only needing the other packages for interacting with the outside world,
+// and thus maintains a clean concept for what a computer program should do
 
 func main() {
 	fmt.Println("Starting Elevator....")
 
 	// - - - - - - Channels - - - - - - - - -
 
-	// ! Check out if this can be made obsolete using openDoor and changeMotorDirection! That would be cool!
-	elevatorShouldStop := make(chan bool)
-
-	// Event channels for finite state machine
+	// Input message channels for events in finite state machine
 	requestEvent := make(chan elevator.ButtonEvent)
 	floorEvent := make(chan int)
 	doorTimeout := make(chan bool)
 
-	// ! Check out these
-	// Message channels for performing actions on timer instance
-	resetDoorTimer := make(chan bool)
-	stopInactivityTimer := make(chan bool)
-
-	// Message channels for performing actions on elevator instance
+	// Output message channels for performing actions on elevator hardware
 	setFloorIndicator := make(chan int)
 
-	//addRequestAction := make(chan elevator.ButtonEvent)
 	setLights := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
 
 	changeMotorDirection := make(chan elevator.MotorDirection)
@@ -41,21 +46,14 @@ func main() {
 	closeDoor := make(chan bool)
 	keepDoorOpen := make(chan bool)
 
-	//changeDirectionBehaviour := make(chan requests.DirectionBehaviourPair)
+	// Output message channels for performing actions on timer instance
+	resetDoorTimer := make(chan bool)
+	stopInactivityTimer := make(chan bool)
 
 	// - - - - - - Initializing - - - - - - -
 
 	startFloor := elevator.HardwareInit()
 
-	// ! Change this
-	//thisElevator := elevator.NewUninitializedElevator()
-	//fmt.Println("1")
-	//if elevator.FloorSensor() == -1 {
-	//	elevator.SetMotorDirection(elevator.D_Down)
-	//	thisElevator.Direction = elevator.D_Down
-	//	thisElevator.Behaviour = elevator.EB_Moving
-	//}
-	//fmt.Println("2")
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
@@ -63,26 +61,17 @@ func main() {
 	go elevator.PollFloorSensor(floorEvent)
 
 	// Finite state machine transition logic
-	go fsm.EventLoopTransitionLogic(startFloor, elevatorShouldStop, requestEvent,
+	go fsm.StateMachineLoop(startFloor, requestEvent,
 		floorEvent, setFloorIndicator, doorTimeout, keepDoorOpen, openDoor, closeDoor, setLights, changeMotorDirection)
 
 	// Finite state machine action handling
 	for {
-		fmt.Println("Loop")
 		select {
 		case newFloor := <-setFloorIndicator:
 			elevator.FloorIndicator(newFloor)
-			//thisElevator.Floor = newFloor
-
-		//case newRequest := <-addRequestAction:
-		//	thisElevator.Requests[newRequest.Floor][newRequest.Button] = true
-		//	elevator.SetAllLights(thisElevator)
 
 		case requestList := <-setLights:
 			elevator.SetAllLights(requestList)
-
-		//case pair := <-changeDirectionBehaviour:
-		//thisElevator.Direction, thisElevator.Behaviour = pair.Direction, pair.Behaviour
 
 		case dir := <-changeMotorDirection:
 			elevator.SetMotorDirection(dir)
@@ -90,25 +79,12 @@ func main() {
 		case <-openDoor:
 			elevator.DoorLight(true)
 			resetDoorTimer <- true
-			//thisElevator = requests.ClearAtCurrentFloor(thisElevator)
 
 		case <-closeDoor:
 			elevator.DoorLight(false)
-			//elevator.SetMotorDirection(thisElevator.Direction)
 
 		case <-keepDoorOpen:
 			resetDoorTimer <- true
-			//thisElevator = requests.ClearAtCurrentFloor(thisElevator)
-			//elevator.SetAllLights(thisElevator)
-
-			// ! Check out if this can be made obsolete using openDoor and changeMotorDirection! That would be cool!
-			//case <-elevatorShouldStop:
-			//	elevator.SetMotorDirection(elevator.D_Stop)
-			//	elevator.DoorLight(true)
-			//	thisElevator = requests.ClearAtCurrentFloor(thisElevator)
-			//	resetDoorTimer <- true
-			//	elevator.SetAllLights(thisElevator)
-			//	thisElevator.Behaviour = elevator.EB_DoorOpen
 		}
 	}
 }
