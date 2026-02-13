@@ -76,8 +76,9 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			break
 		case elevator.EB_Moving:
 			// ! Check these out!!!
-			//closeDoor <- true
-			//changeMotorDirection <- nextState.Direction
+			closeDoor <- true
+			nextState = requests.ClearAtCurrentFloor(nextState)
+			changeMotorDirection <- nextState.Direction
 		case elevator.EB_Idle:
 			fmt.Println("Jeg tror ikke dette skjer.....")
 			closeDoor <- true
