@@ -54,20 +54,35 @@ func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Ele
 	}
 }
 
-func NewUninitializedElevator() Elevator {
-	//net.ResolveUDPAddr()
-	elevio.Init("localhost:15657", N_FLOORS)
+func NewStartElevator(startFloor int) Elevator {
 	return Elevator{
-		Floor:     -1,
+		Floor:     startFloor,
 		Direction: D_Stop,
 		Behaviour: EB_Idle,
 	}
 }
 
-func SetAllLights(e Elevator) {
+func HardwareInit() int {
+	elevio.Init("localhost:15657", N_FLOORS)
+
+	// Turn off all lights
+	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
+	SetAllLights(allLightsOff)
+	DoorLight(false)
+
+	// Move to floor if not on one
+	SetMotorDirection(D_Down)
+	for FloorSensor() == -1 {}
+	SetMotorDirection(D_Stop)
+
+	// Return startfloor
+	return FloorSensor()
+}
+
+func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
 	for floor := 0; floor < N_FLOORS; floor++ {
 		for btn := 0; btn < N_BUTTONS; btn++ {
-			RequestButtonLight(floor, Button(btn), e.Requests[floor][btn])
+			RequestButtonLight(floor, Button(btn), requests[floor][btn])
 		}
 	}
 }
