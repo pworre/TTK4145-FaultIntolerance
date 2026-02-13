@@ -23,8 +23,11 @@ The struct of the OrderToSyncMap is:
         Order{ID:"2", Floor:3, State:Pending},
         Order{ID:"3", Floor:1, State:Completed},
 }
-*/
 
+
+CASE 1 : Increasing order of peerID
+List[PeerID] = order
+*/
 
 type orderType int 
 const (
@@ -43,7 +46,7 @@ const (
 )
 
 type Order struct {
-	ID					string
+	PeerID				string
 	OrderType 			orderType
 	OrderFloor			int
 	CurrentOrderState 	currentOrderState
@@ -69,7 +72,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 	go bcast.Receiver(bcast_PORT, networkRx)
 	
 	orderToSync := Order{
-		ID:					myID,
+		PeerID:				myID,
 		OrderType: 			HALL,
 		OrderFloor: 		-1,
 		CurrentOrderState: 	COS_NONE,
@@ -81,10 +84,18 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 	// ! BE AWARE ! JUST ASSIGNED A EMPTY ORDER
 	confirmedOrders = append(confirmedOrders, currentOrder)
 
-	nextFloor := 4
+	destinationFloor := 4
 
-	orderToSyncMap := make(map[string][]Order)
+	orderToSyncMap := make(map[string]Order)
 	orderToSyncMap[myID] = append(myID, orderToSync)
+
+	// TODO: This is just example for code, but must be implemented!
+	currentOrder := Order{
+		PeerID: 			myID,
+		OrderType: 			HALL,
+		OrderFloor: 		4,
+		CurrentOrderState: 	COS_CONFIRMED_REQUEST,
+	}
 
 	msgTransmitting := OrderNetworkMsg{
 		PeerID: 			myID, 
@@ -104,11 +115,25 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			}
 			orderSyncBuffer <-orderToAdd
 
-		case floorToRemove := <-reachFloorEvent:
-			if floorToRemove == nextFloor {
+		case currentFloor := <-reachFloorEvent:
+			if currentFloor == currentOrder.OrderFloor {
+				for i, order := range(confirmedOrders) {
+					if order == currentOrder {
+						// ! DO WE STILL WANT THE ORDER TO BE REMOVED IN CONFIRMEDLIST WHEN IT HAS A ORDER OF STATE UNCONFIRMED_DELETION
+						confirmedOrders, removedOrder, isPopped := popOrder(confirmedOrders, i)
+						if !isPopped {
+							log.Println("Could not pop the order")
+						}
+						orderToRemove := removedOrder
+						orderToRemove.CurrentOrderState = COS_UNCONFIRMED_DELETION
+						orderSyncBuffer <- orderToRemove
+
+						msgTransmitting.OrdersConfirmed = confirmedOrders
+					}
+				}
 				orderToRemove := Order{
 					OrderType: 			currentOrder.OrderType,
-					OrderFloor: 		floorToRemove,
+					OrderFloor: 		currentFloor,
 					CurrentOrderState: 	COS_UNCONFIRMED_DELETION,
 				}
 				orderSyncBuffer <-orderToRemove
@@ -121,7 +146,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			}
 			if orderToHandle.CurrentOrderState == COS_UNCONFIRMED_DELETION {
 				// TODO: Send orderToSync on network
-				msgTransmitting.OrderToSyncMap[myID][myID] = orderToHandle
+				msgTransmitting.OrderToSyncMap[myID] = orderToHandle
 				msgTransmitting.StateCounter += 1
 				networkTx <-msgTransmitting
 			}
@@ -143,28 +168,14 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 }
 
 
+// Pops a order at a given index  and returns a new list of orders, the popped order, 
+// and a bool telling if a order was popped or not
+func popOrder(listOrders []Order, index int) ([]Order, Order, bool) {
+	if len(listOrders) == 0 {
+		return listOrders, Order{}, false
+	}
+	poppedOrder := listOrders[index]
+	listOrders = append(listOrders[:index], listOrders[index+1:]...)
 
-
-
-
-
-
-
-type globalOrders struct {
-	// STRUCT OF MAP:  [floor : Direction]
-	hallOrders map[int]elevator.MotorDirection
-
-	// STRUCT OF MAP: 	[ID of responsible elev : floor]
-	cabOrders map[string]int
-}
-
-type msgState struct {
-	GlobalID 		int
-	TimeStamp 		uint64
-	ElevState 		elevator.Elevator
-	GlobalOrders	globalOrders
-}
-
-func sync_orders() {
-	
+	return listOrders, poppedOrder, true
 }
