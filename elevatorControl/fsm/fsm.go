@@ -7,7 +7,6 @@ import (
 
 // Finite state machine loop
 
-
 func StateMachineLoop(startFloor int,
 	requestEvent chan elevator.ButtonEvent, floorEvent chan int,
 	setFloorIndicator chan int, doorTimeout chan bool,
@@ -31,9 +30,7 @@ func StateMachineLoop(startFloor int,
 	}
 }
 
-
 // Event handling functions
-
 
 func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
 	keepDoorOpen chan bool, openDoor chan bool,
@@ -123,10 +120,9 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			setLights <- nextState.Requests
 			break
 		case elevator.EB_Moving:
-			// ! Check these out!!!
-			//closeDoor <- true
+			closeDoor <- true
 			//nextState = requests.ClearAtCurrentFloor(nextState)
-			//changeMotorDirection <- nextState.Direction
+			changeMotorDirection <- nextState.Direction
 		case elevator.EB_Idle:
 			closeDoor <- true
 			changeMotorDirection <- nextState.Direction
