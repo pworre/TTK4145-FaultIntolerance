@@ -64,6 +64,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 	// State transformation and action outputs via message passing to main
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
+		nextState = requests.ClearAtCurrentFloor(nextState)
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
 		//changeDirectionBehaviour <- requests.DirectionBehaviourPair{nextState.Direction, nextState.Behaviour}
 		fmt.Println("Halla!!!")
