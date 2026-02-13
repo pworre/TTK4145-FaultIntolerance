@@ -44,6 +44,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int, setFloorIndica
 		if requests.ShouldStop(nextState) {
 			//elevatorShouldStop <- true // ! Change to action!
 			changeMotorDirection <- elevator.D_Stop
+			nextState.Direction = elevator.D_Stop
 			openDoor <- true
 			nextState = requests.ClearAtCurrentFloor(nextState)
 			setLights <- nextState.Requests
@@ -64,7 +65,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 	// State transformation and action outputs via message passing to main
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
-		nextState = requests.ClearAtCurrentFloor(nextState)
+		//nextState = requests.ClearAtCurrentFloor(nextState)
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
 		//changeDirectionBehaviour <- requests.DirectionBehaviourPair{nextState.Direction, nextState.Behaviour}
 		fmt.Println("Halla!!!")
