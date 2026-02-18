@@ -9,23 +9,23 @@ import (
 
 func StateMachineLoop(startFloor int,
 	requestEvent chan elevator.ButtonEvent, floorEvent chan int,
-	setFloorIndicator chan int, doorTimeout chan bool,
-	keepDoorOpen chan bool, openDoor chan bool, closeDoor chan bool, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	changeMotorDirection chan elevator.MotorDirection) {
+	doorTimeout chan bool, setFloorIndicator chan int,
+	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	changeMotorDirection chan elevator.MotorDirection,
+	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool) {
 
 	elevator := elevator.NewStartElevator(startFloor)
 
 	for {
 		select {
 		case newRequest := <-requestEvent:
-			elevator = OnRequestButtonPress(elevator, newRequest.Floor, newRequest.Button, keepDoorOpen, openDoor, changeMotorDirection, setLights)
+			elevator = OnRequestButtonPress(elevator, newRequest.Floor, newRequest.Button, setLights, changeMotorDirection, openDoor, keepDoorOpen)
 
 		case newFloor := <-floorEvent:
 			elevator = OnFloorArrival(elevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, openDoor)
 
 		case <-doorTimeout:
-			// ? Maybe add stopDoorTimer
-			elevator = OnDoorTimeout(elevator, changeMotorDirection, keepDoorOpen, closeDoor, setLights)
+			elevator = OnDoorTimeout(elevator, setLights, changeMotorDirection, closeDoor, keepDoorOpen)
 		}
 	}
 }
@@ -33,8 +33,10 @@ func StateMachineLoop(startFloor int,
 // Event handling functions
 
 func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
-	keepDoorOpen chan bool, openDoor chan bool,
-	changeMotorDirection chan elevator.MotorDirection, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) elevator.Elevator {
+						  setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+						  changeMotorDirection chan elevator.MotorDirection,
+						  openDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+
 	// Copy of current state
 	nextState := currentState
 
@@ -46,11 +48,9 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 		} else {
 			nextState.Requests[btnFloor][btnType] = true
 		}
-		break
 
 	case elevator.EB_Moving:
 		nextState.Requests[btnFloor][btnType] = true
-		break
 
 	case elevator.EB_Idle:
 		nextState.Requests[btnFloor][btnType] = true
@@ -60,16 +60,12 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 		case elevator.EB_DoorOpen:
 			openDoor <- true
 			nextState = requests.ClearAtCurrentFloor(nextState)
-			break
 
 		case elevator.EB_Moving:
 			changeMotorDirection <- nextState.Direction
-			break
 
 		case elevator.EB_Idle:
-			break
 		}
-		break
 	}
 
 	setLights <- nextState.Requests
@@ -78,8 +74,12 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 	return nextState
 }
 
-func OnFloorArrival(currentState elevator.Elevator, newFloor int, setFloorIndicator chan int, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	changeMotorDirection chan elevator.MotorDirection, openDoor chan bool) elevator.Elevator {
+func OnFloorArrival(currentState elevator.Elevator, newFloor int,
+					setFloorIndicator chan int,
+					setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+					changeMotorDirection chan elevator.MotorDirection,
+					openDoor chan bool) elevator.Elevator {
+
 	// Copy of current state
 	nextState := currentState
 
@@ -103,8 +103,10 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int, setFloorIndica
 }
 
 func OnDoorTimeout(currentState elevator.Elevator,
-	changeMotorDirection chan elevator.MotorDirection,
-	keepDoorOpen chan bool, closeDoor chan bool, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) elevator.Elevator {
+				   setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+				   changeMotorDirection chan elevator.MotorDirection,
+				   closeDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+
 	// Copy of current state
 	nextState := currentState
 
@@ -118,20 +120,15 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			keepDoorOpen <- true
 			nextState = requests.ClearAtCurrentFloor(nextState)
 			setLights <- nextState.Requests
-			break
+			
 		case elevator.EB_Moving:
 			closeDoor <- true
-			//nextState = requests.ClearAtCurrentFloor(nextState)
 			changeMotorDirection <- nextState.Direction
+
 		case elevator.EB_Idle:
 			closeDoor <- true
 			changeMotorDirection <- nextState.Direction
-			break
 		}
-
-		break
-	default:
-		break
 	}
 
 	// Return transformed state

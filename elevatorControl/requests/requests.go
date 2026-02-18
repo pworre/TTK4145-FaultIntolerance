@@ -46,6 +46,7 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 		} else {
 			return elevator.D_Stop, elevator.EB_Idle
 		}
+
 	case elevator.D_Down:
 		if requestsBelow(e) {
 			return elevator.D_Down, elevator.EB_Moving
@@ -56,6 +57,7 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 		} else {
 			return elevator.D_Stop, elevator.EB_Idle
 		}
+
 	case elevator.D_Stop:
 		if requestsHere(e) {
 			return elevator.D_Stop, elevator.EB_DoorOpen
@@ -66,6 +68,7 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 		} else {
 			return elevator.D_Stop, elevator.EB_Idle
 		}
+
 	default:
 		return elevator.D_Stop, elevator.EB_Idle
 	}
@@ -77,12 +80,15 @@ func ShouldStop(e elevator.Elevator) bool {
 		return e.Requests[e.Floor][elevator.B_HallDown] ||
 			e.Requests[e.Floor][elevator.B_Cab] ||
 			!requestsBelow(e)
+
 	case elevator.D_Up:
 		return e.Requests[e.Floor][elevator.B_HallUp] ||
 			e.Requests[e.Floor][elevator.B_Cab] ||
 			!requestsAbove(e)
+
 	case elevator.D_Stop:
 		return true
+
 	default:
 		return true
 	}
@@ -112,11 +118,9 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 		e.Requests[e.Floor][elevator.B_HallDown] = false
 
 	case elevator.D_Stop:
-		fallthrough
-
-	default:
 		e.Requests[e.Floor][elevator.B_HallUp] = false
 		e.Requests[e.Floor][elevator.B_HallDown] = false
 	}
+	
 	return e
 }

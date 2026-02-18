@@ -62,39 +62,10 @@ func NewStartElevator(startFloor int) Elevator {
 	}
 }
 
-func HardwareInit() int {
-	elevio.Init("localhost:15657", N_FLOORS)
 
-	// Turn off all lights
-	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
-	SetAllLights(allLightsOff)
-	DoorLight(false)
+// These functions exist to maintain that all interactions with the psysical world go through the elevator module,
+// maintaining good module separation and simplifying module interfaces
 
-	// Move to floor if not on one
-	SetMotorDirection(D_Down)
-	for FloorSensor() == -1 {}
-	SetMotorDirection(D_Stop)
-
-	// Return startfloor
-	return FloorSensor()
-}
-
-func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
-	for floor := 0; floor < N_FLOORS; floor++ {
-		for btn := 0; btn < N_BUTTONS; btn++ {
-			RequestButtonLight(floor, Button(btn), requests[floor][btn])
-		}
-	}
-}
-
-func PollButtons(buttonEvent chan ButtonEvent) {
-	btnEvent := make(chan elevio.ButtonEvent)
-	go elevio.PollButtons(btnEvent)
-	for {
-		event := <-btnEvent
-		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
-	}
-}
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
 }
@@ -112,4 +83,37 @@ func DoorLight(value bool) {
 }
 func RequestButtonLight(floor int, button Button, value bool) {
 	elevio.SetButtonLamp(elevio.ButtonType(button), floor, value)
+}
+
+func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
+	for floor := 0; floor < N_FLOORS; floor++ {
+		for btn := 0; btn < N_BUTTONS; btn++ {
+			RequestButtonLight(floor, Button(btn), requests[floor][btn])
+		}
+	}
+}
+
+func HardwareInit() int {
+	elevio.Init("localhost:15657", N_FLOORS)
+
+	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
+	SetAllLights(allLightsOff)
+	DoorLight(false)
+
+	SetMotorDirection(D_Down)
+	for FloorSensor() == -1 {}
+	SetMotorDirection(D_Stop)
+
+	return FloorSensor()
+}
+
+func PollButtons(buttonEvent chan ButtonEvent) {
+	btnEvent := make(chan elevio.ButtonEvent)
+
+	// Passing all elevio ButtonEvents to elevator ButtonEvents
+	go elevio.PollButtons(btnEvent)
+	for {
+		event := <-btnEvent
+		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
+	}
 }
