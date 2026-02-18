@@ -54,7 +54,7 @@ func main() {
 
 	// - - - - - - Deploying - - - - - - -
 
-	go timer.Timers(resetDoorTimer, stopInactivityTimer, doorTimeout)
+	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
 	go elevator.PollButtons(requestEvent)
 	go elevator.PollFloorSensor(floorEvent)
 
