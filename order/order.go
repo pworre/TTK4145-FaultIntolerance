@@ -8,6 +8,7 @@ import (
 	"log"
 	"order"
 	"elevator_project/config"
+	"networkDriver/peers"
 )
 
 // ? Peer routing table [1, 2, 3, 4, ..., n] - Makes order of who transmits to who
@@ -42,7 +43,7 @@ const (
 	COS_UNCONFIRMED_REQUEST = 1
 	COS_CONFIRMED_REQUEST = 2
 	COS_UNCONFIRMED_DELETION = 3 
-	COS_CONFIRMED_DELETION = 4
+	COS_READY_TO_DELETE = 4
 )
 
 type Order struct {
@@ -53,10 +54,11 @@ type Order struct {
 }
 
 type OrderNetworkMsg struct {
-	PeerID				string
-	OrderToSyncMap		map[string]Order
-	OrdersConfirmed		[]Order
-	StateCounter		uint64
+	PeerID					string
+	OrderToSyncMap			map[string]Order
+	OrdersConfirmed_HALL	[]Order
+	OrdersConfirmed_CAB		[]Order
+	StateCounter			uint64
 }
 
 const bcast_PORT = 25532
@@ -78,17 +80,17 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		CurrentOrderState: 	COS_NONE,
 	}
 
-	// ! TEMPORARY VARIABLES FOR CODING ONLY
-	confirmedOrders := make([]Order, 0)
-	currentOrder := Order{}
-	// ! BE AWARE ! JUST ASSIGNED A EMPTY ORDER
-	confirmedOrders = append(confirmedOrders, currentOrder)
-
-	destinationFloor := 4
-
+	// MAPS for syncronization use
 	orderToSyncMap := make(map[string]Order)
 	orderToSyncMap[myID] = append(myID, orderToSync)
 
+	ordersConfirmed_HALL := make([]Order, 0)
+	ordersConfirmed_CAB := make(map[string][]Order)
+
+	orderDeleteBuffer := make(chan Order, 1024)
+	txMsgUpdate := make(chan bool, 1024)
+	
+	// ! TEMPORARY VARIABLES FOR CODING ONLY
 	// TODO: This is just example for code, but must be implemented!
 	currentOrder := Order{
 		PeerID: 			myID,
@@ -96,12 +98,27 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		OrderFloor: 		4,
 		CurrentOrderState: 	COS_CONFIRMED_REQUEST,
 	}
+	
+	// ? TAKE LIST OF ACTIVE PEERS AS AN INPUT ?
+	peers := peers.PeerUpdate{}
+	activePeersList := peers.Peers
+	//confirmedOrders_HALL = append(confirmedOrders_HALL, currentOrder)
+	//
+	// ! END OF TEMPORARY VARIABLES FOR CODING ONLY
 
+
+
+	isPeerSynced := make(map[string]bool, 0)
+	for _, peerID := range(activePeersList) {
+		isPeerSynced[peerID] = false
+	}
+	
 	msgTransmitting := OrderNetworkMsg{
-		PeerID: 			myID, 
-		OrderToSyncMap:		orderToSyncMap,
-		OrdersConfirmed: 	nil,
-		StateCounter: 		0,
+		PeerID: 				myID, 
+		OrderToSyncMap:			orderToSyncMap,
+		OrdersConfirmed_HALL: 	nil,
+		OrdersConfirmed_CAB:	nil,
+		StateCounter: 			0,
 	}
 
 
@@ -117,52 +134,106 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 		case currentFloor := <-reachFloorEvent:
 			if currentFloor == currentOrder.OrderFloor {
-				for i, order := range(confirmedOrders) {
-					if order == currentOrder {
-						// ! DO WE STILL WANT THE ORDER TO BE REMOVED IN CONFIRMEDLIST WHEN IT HAS A ORDER OF STATE UNCONFIRMED_DELETION
-						confirmedOrders, removedOrder, isPopped := popOrder(confirmedOrders, i)
-						if !isPopped {
-							log.Println("Could not pop the order")
-						}
-						orderToRemove := removedOrder
-						orderToRemove.CurrentOrderState = COS_UNCONFIRMED_DELETION
-						orderSyncBuffer <- orderToRemove
-
-						msgTransmitting.OrdersConfirmed = confirmedOrders
-					}
-				}
-				orderToRemove := Order{
-					OrderType: 			currentOrder.OrderType,
-					OrderFloor: 		currentFloor,
-					CurrentOrderState: 	COS_UNCONFIRMED_DELETION,
-				}
-				orderSyncBuffer <-orderToRemove
+				completedOrder := currentOrder
+				completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
+				orderSyncBuffer <-completedOrder
 			}
 
 		case orderToHandle := <-orderSyncBuffer:
-			if orderToHandle.CurrentOrderState == COS_UNCONFIRMED_REQUEST {
-				// TODO: Send orderToSync on network (NOT CONFIRMED_LIST!)
+			orderToSyncMap[myID] = orderToHandle
+			txMsgUpdate <- true
 
+		/*
+		case networkOrders := <-ordersConfirmed:
+			* TODO: Add 'hallassigner' to choose next to do
+		*/
+
+		case msgReceived := <-networkRx:
+			// Save maps if newer state
+			if msgReceived.StateCounter > msgTransmitting.StateCounter {
+				orderToSyncMap = msgReceived.OrderToSyncMap
+				ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+				ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
+				msgTransmitting.StateCounter = msgReceived.StateCounter - 1
 			}
-			if orderToHandle.CurrentOrderState == COS_UNCONFIRMED_DELETION {
-				// TODO: Send orderToSync on network
-				msgTransmitting.OrderToSyncMap[myID] = orderToHandle
+
+			// Checks if my OrderToSync is synced to all peers
+			if msgReceived.OrderToSyncMap[myID] == orderToSync {
+				isPeerSynced[msgReceived.PeerID] = true
+				// ! WILL isPeerSynced be reset each time a new order is added to orderSyncBuffer ????
+				isAllPeersSynced := true
+				for _, peerID := range(activePeersList) {
+					if isPeerSynced[peerID] == false {
+						isAllPeersSynced = false
+					}
+				}
+				if isAllPeersSynced {
+					// Check if unconfirmed: then need to sync it
+					if orderToSyncMap[myID].CurrentOrderState == COS_UNCONFIRMED_REQUEST {
+						orderToSync.CurrentOrderState = COS_CONFIRMED_REQUEST
+						orderSyncBuffer <-orderToSync
+					}
+					if orderToSync.CurrentOrderState == COS_UNCONFIRMED_DELETION {
+						orderToSync.CurrentOrderState = COS_READY_TO_DELETE
+						orderDeleteBuffer <-orderToSync
+					}
+
+					// Check if confirmed: Then add to confirmed list
+					if orderToSync.CurrentOrderState == COS_CONFIRMED_REQUEST {
+						if orderToSync.OrderType == HALL {
+							ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
+						}
+						if orderToSync.OrderType == CAB {
+							ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
+						}
+
+						orderToSyncMap[myID] = orderToSync
+						networkTx <- msgTransmitting
+					}
+				}
+			}
+		case orderToDelete := <- orderDeleteBuffer:
+			// Check which type of list to delete from
+			listToModify := []Order{}
+			if orderToDelete.OrderType == HALL {
+				listToModify = ordersConfirmed_HALL
+			}
+			if orderToDelete.OrderType == CAB {
+				listToModify = ordersConfirmed_CAB[orderToDelete.PeerID]
+			}
+
+			// Remove order
+			for i, order := range(listToModify) {
+				if order == orderToDelete {
+					newOrderList, _, isPopped := popOrder(listToModify, i)
+					if !isPopped {
+						log.Println("Could not pop order")
+					}
+					// Replace list
+					if orderToDelete.OrderType == HALL {
+						ordersConfirmed_HALL = newOrderList
+					}
+					if orderToDelete.OrderType == CAB {
+						ordersConfirmed_CAB[myID] = newOrderList
+					}
+				}
+			}
+			
+			txMsgUpdate <-true
+
+		case txChanges := <- txMsgUpdate:
+			if txChanges {
+				// Set all peers to unsynced status
+				for _, peerID := range(activePeersList) {
+					isPeerSynced[peerID] = false
+				}
+
+				msgTransmitting.OrderToSyncMap = orderToSyncMap
+				msgTransmitting.OrdersConfirmed_CAB = ordersConfirmed_CAB[myID]
+				msgTransmitting.OrdersConfirmed_HALL = ordersConfirmed_HALL
 				msgTransmitting.StateCounter += 1
 				networkTx <-msgTransmitting
 			}
-
-		case networkOrders := <-ordersConfirmed:
-			// TODO: Add 'hallassigner' to choose next to do
-
-		case msgReceived := <-networkRx:
-			// TODO: Save to a map
-			if msgReceived.StateCounter > msgTransmitting.StateCounter {
-				orderToSyncMap = msgReceived.OrderToSyncMap
-				confirmedOrders = msgReceived.OrdersConfirmed
-			}
-
-			// ! PROBLEMET NÅ ER AT VI PRØVER Å ASSIGNE MAP TIL ET MAP. HER MÅ NOE FIKSES OG HA OVERSIKT OVER HVEM SOM HAR NYEST AV HVA!!!
-		
 		}
 	}
 }
