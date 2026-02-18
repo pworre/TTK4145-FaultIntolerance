@@ -1,0 +1,3 @@
+[submodule "external/Project-resources"]
+	path = external/Project-resources
+	url = https://github.com/TTK4145/Project-resources.git
