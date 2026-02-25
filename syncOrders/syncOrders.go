@@ -29,6 +29,8 @@ The struct of the OrderToSyncMap is:
 }
 */
 
+// TODO: Remove all elevio-use (after merged)
+
 type orderType int 
 const (
 	HALL = 0
@@ -47,7 +49,7 @@ const (
 
 type Order struct {
 	PeerID				string
-	OrderType 			orderType
+	OrderType 			elevio.ButtonType
 	OrderFloor			int
 	CurrentOrderState 	currentOrderState
 }
@@ -60,9 +62,16 @@ type OrderNetworkMsg struct {
 	StateCounter			uint64					`json:"stateCounter"`
 }
 
+// ! MEANT TO BE IMPLEMENTED IN ELEVATOR !
+type ReachFloor struct {
+	currentFloor			int
+	currentDirection		elevio.ButtonType
+}
+// ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! 
+
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int, cfg config.Config) {
+func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -78,7 +87,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		CurrentOrderState: 	COS_NONE,
 	}
 
-	// MAPS for syncronization use
+	// MAP for syncronization use
 	orderToSyncMap := make(map[string]Order)
 	orderToSyncMap[myID] = orderToSync
 
@@ -87,30 +96,15 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 	orderDeleteBuffer := make(chan Order, 1024)
 	txMsgUpdate := make(chan bool, 1024)
-	
-	// ! TEMPORARY VARIABLES FOR CODING ONLY
-	// TODO: This is just example for code, but must be implemented!
-	currentOrder := Order{
-		PeerID: 			myID,						
-		OrderType: 			HALL,
-		OrderFloor: 		4,
-		CurrentOrderState: 	COS_CONFIRMED_REQUEST,
-	}
-	
-	// ? TAKE LIST OF ACTIVE PEERS AS AN INPUT ?
-	peers := peers.PeerUpdate{}
-	activePeersList := peers.Peers
-	//confirmedOrders_HALL = append(confirmedOrders_HALL, currentOrder)
-	//
-	// ! END OF TEMPORARY VARIABLES FOR CODING ONLY
 
-
+	activePeersList := make([]string, 0)
 
 	isPeerSynced := make(map[string]bool, 0)
 	for _, peerID := range(activePeersList) {
 		isPeerSynced[peerID] = false
 	}
 	
+	// This node's transmitting message
 	msgTransmitting := OrderNetworkMsg{
 		PeerID: 				myID, 
 		OrderToSyncMap:			orderToSyncMap,
@@ -124,17 +118,31 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		select {
 		case buttonPressed := <-buttonEvent:
 			orderToAdd := Order{
-				OrderType: 			orderType(buttonPressed.Button),
+				OrderType: 			buttonPressed.Button,
 				OrderFloor: 		buttonPressed.Floor,
 				CurrentOrderState: 	COS_UNCONFIRMED_REQUEST,
 			}
 			orderSyncBuffer <-orderToAdd
 
-		case currentFloor := <-reachFloorEvent:
-			if currentFloor == currentOrder.OrderFloor {
-				completedOrder := currentOrder
-				completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
-				orderSyncBuffer <-completedOrder
+		case reachFloor := <-reachFloorEvent:
+			currentFloor := reachFloor.currentFloor
+			currentDirection := reachFloor.currentDirection
+
+			// CAB ORDERS
+			for _, order := range(ordersConfirmed_CAB[myID]) {
+				if order.OrderFloor == currentFloor {
+					completedOrder := order
+					completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
+					orderSyncBuffer <-completedOrder
+				}
+			}
+			// HALL ORDERS
+			for _, order := range(ordersConfirmed_HALL) {
+				if order.OrderFloor == currentFloor && order.OrderType == currentDirection {
+					completedOrder := order
+					completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
+					orderSyncBuffer <-completedOrder
+				}
 			}
 
 		case orderToHandle := <-orderSyncBuffer:
@@ -148,6 +156,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 		case msgReceivedBytes := <-networkRx:
 			msgReceived := Decode(msgReceivedBytes)
+
 			// Save maps if newer state
 			if msgReceived.StateCounter > msgTransmitting.StateCounter {
 				orderToSyncMap = msgReceived.OrderToSyncMap
@@ -156,10 +165,12 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 				msgTransmitting.StateCounter = msgReceived.StateCounter - 1
 			}
 
-			// Checks if my OrderToSync is synced to all peers
+			// Checks if MY OrderToSync is synced to all peers
+			if msgReceived.OrderToSyncMap[myID] != orderToSync{
+				isPeerSynced[msgReceived.PeerID] = false
+			}
 			if msgReceived.OrderToSyncMap[myID] == orderToSync {
 				isPeerSynced[msgReceived.PeerID] = true
-				// ! WILL isPeerSynced be reset each time a new order is added to orderSyncBuffer ????
 				isAllPeersSynced := true
 				for _, peerID := range(activePeersList) {
 					if !isPeerSynced[peerID] {
@@ -233,6 +244,9 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 				msgTransmitting.StateCounter += 1
 				networkTx <-Encode(msgTransmitting)
 			}
+
+		case newPeerUpdate := <-peerUpdate:
+			activePeersList = newPeerUpdate.Peers
 		}
 	}
 }
