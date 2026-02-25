@@ -4,6 +4,7 @@ import (
 	"elevatorDriver/elevio"
 	"networkDriver/bcast"
 	"log"
+	"encoding/json"
 	"config"
 	"networkDriver/peers"
 )
@@ -52,20 +53,20 @@ type Order struct {
 }
 
 type OrderNetworkMsg struct {
-	PeerID					string
-	OrderToSyncMap			map[string]Order
-	OrdersConfirmed_HALL	[]Order
-	OrdersConfirmed_CAB		[]Order
-	StateCounter			uint64
+	PeerID					string					`json:"peerID"`
+	OrderToSyncMap			map[string]Order		`json:"orderToSyncMap"`
+	OrdersConfirmed_HALL	[]Order					`json:"ordersConfirmed_HALL"`
+	OrdersConfirmed_CAB		[]Order					`json:"ordersConfirmed_CAB"`
+	StateCounter			uint64					`json:"stateCounter"`
 }
 
 const G_bcast_PORT = 25532
 
-func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int, cfg config.Config) {
+func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int, cfg config.Config) {
 	myID := cfg.ID
 	
-	networkRx := make(chan OrderNetworkMsg, 1024)
-	networkTx := make(chan OrderNetworkMsg, 1024)
+	networkRx := make(chan []byte, 1024)
+	networkTx := make(chan []byte, 1024)
 	
 	go bcast.Transmitter(G_bcast_PORT, networkTx)
 	go bcast.Receiver(G_bcast_PORT, networkRx)
@@ -90,7 +91,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 	// ! TEMPORARY VARIABLES FOR CODING ONLY
 	// TODO: This is just example for code, but must be implemented!
 	currentOrder := Order{
-		PeerID: 			myID,
+		PeerID: 			myID,						
 		OrderType: 			HALL,
 		OrderFloor: 		4,
 		CurrentOrderState: 	COS_CONFIRMED_REQUEST,
@@ -145,7 +146,8 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			* TODO: Add 'hallassigner' to choose next to do
 		*/
 
-		case msgReceived := <-networkRx:
+		case msgReceivedBytes := <-networkRx:
+			msgReceived := Decode(msgReceivedBytes)
 			// Save maps if newer state
 			if msgReceived.StateCounter > msgTransmitting.StateCounter {
 				orderToSyncMap = msgReceived.OrderToSyncMap
@@ -185,7 +187,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 						}
 
 						orderToSyncMap[myID] = orderToSync
-						networkTx <- msgTransmitting
+						networkTx <- Encode(msgTransmitting)
 					}
 				}
 			}
@@ -202,7 +204,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			// Remove order
 			for i, order := range(listToModify) {
 				if order == orderToDelete {
-					newOrderList, _, isPopped := popOrder(listToModify, i)
+					newOrderList, _, isPopped := PopOrder(listToModify, i)
 					if !isPopped {
 						log.Println("Could not pop order")
 					}
@@ -229,7 +231,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 				msgTransmitting.OrdersConfirmed_CAB = ordersConfirmed_CAB[myID]
 				msgTransmitting.OrdersConfirmed_HALL = ordersConfirmed_HALL
 				msgTransmitting.StateCounter += 1
-				networkTx <-msgTransmitting
+				networkTx <-Encode(msgTransmitting)
 			}
 		}
 	}
@@ -238,7 +240,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 // Pops a order at a given index  and returns a new list of orders, the popped order, 
 // and a bool telling if a order was popped or not
-func popOrder(listOrders []Order, index int) ([]Order, Order, bool) {
+func PopOrder(listOrders []Order, index int) ([]Order, Order, bool) {
 	if len(listOrders) == 0 {
 		return listOrders, Order{}, false
 	}
@@ -246,4 +248,23 @@ func popOrder(listOrders []Order, index int) ([]Order, Order, bool) {
 	listOrders = append(listOrders[:index], listOrders[index+1:]...)
 
 	return listOrders, poppedOrder, true
+}
+
+func Encode(input OrderNetworkMsg) []byte {
+
+	jsonBytes, err := json.Marshal(input)
+	if err != nil {
+		log.Println("json.Marshal error: ", err)
+	}
+	return jsonBytes
+}
+
+func Decode(out []byte) OrderNetworkMsg {
+
+	var incomingMsg OrderNetworkMsg
+	err := json.Unmarshal([]byte(out), &incomingMsg)
+	if err != nil {
+		log.Println("json.Unmarshal error: ", err)
+	}
+	return incomingMsg
 }

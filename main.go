@@ -61,5 +61,5 @@ func main() {
 	go elevio.PollObstructionSwitch(obstructionEvent_ch)
 	go elevio.PollFloorSensor(reachFloorEvent_ch)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-	go syncOrders.orderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
+	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
 }
