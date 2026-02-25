@@ -1,3 +1,8 @@
+
+
+//!!!!!!!!!!! Probably delete this whole file!! Logic moves to outer main file
+
+/*
 package main
 
 import (
@@ -89,3 +94,4 @@ func main() {
 		}
 	}
 }
+*/
