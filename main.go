@@ -1,38 +1,51 @@
 package main
 
 import (
-	/*
+	"elevatorControl/elevator"
+	"elevatorDriver/elevio"
+	"log"
+)
+
+/*
 	"networkDriver/peers"
 	"elevator_project/config"
 	"elevatorControl/elevator"
 	"elevatorDriver/elevio"
+	"order"
 	"fmt"
 	"log"
 	"flag"
-	*/
-	"elevator_project/elevatorControl/mainControl"
-)
+*/
 
 const peersPort int = 34933
 
 func main() {
 	mainControl.mainControl()
-	/*
-	cfg := config.ParseFlag()
 
-	// - - - - - - Initilizing - - - - - - -
-	log.Println("Initializing Elevator %d with port %d", cfg.ID, cfg.Port)
-	
+	// - - - - - - Descend to defined state - - - - - -
+	reachFloor := false
+	elevio.SetMotorDirection(elevio.MD_Down)
+	for reachFloor != true {
+		if elevio.GetFloor() != 1 {
+			reachFloor = true
+		}
+	}
+	elevio.SetMotorDirection(elevio.MD_Stop)
+	elevatorState := elevator.NewElevator(elevio.GetFloor(), elevio.MD_Stop, elevator.EB_Idle)
+	for elevio.GetObstruction() {
+		elevio.SetDoorOpenLamp(true)
+	}
+	elevio.SetDoorOpenLamp(false)
 
+	log.Printf("Elevator %d is now at floor %d! Joining network for service...", cfg.ID, elevatorState.Floor)
 
-	// - - - - - - Channels - - - - - - - - -
-	peerTx := make(chan bool)
-	peerRx_state := make(chan )
-	peerRx_order := make(chan )
+	// - - - - - - GoRoutines - - - - - -
+	go peers.Transmitter(cfg.Port, cfg.ID, peersTx_enable)
+	go peers.Receiver(cfg.Port, peersRx_state_ch)
+	go peers.Receiver(cfg.Port, peersRx_GlobalOrder_ch)
 
-	buttonEvent := make(chan )
-	reachFloorEvent := make(chan )
-	stopEvent := make(chan )
-	obstructionEvent := make(chan )
-	*/
+	go elevio.PollButtons(buttonEvent_ch)
+	go elevio.PollObstructionSwitch(obstructionEvent_ch)
+	go elevio.PollFloorSensor(reachFloorEvent_ch)
+	// TODO: Add "fsm" for goroutine with orderAssignment
 }
