@@ -4,8 +4,6 @@ import (
 	"elevatorControl/elevator"
 	"elevatorDriver/elevio"
 	"log"
-)
-
 /*
 	"networkDriver/peers"
 	"elevator_project/config"
@@ -15,14 +13,42 @@ import (
 	"fmt"
 	"log"
 	"flag"
-*/
+	*/
+	"elevator_project/elevatorControl/mainControl"
+)
 
 const peersPort int = 34933
 
 func main() {
 	mainControl.mainControl()
+	cfg := config.ParseFlag()
 
-	// - - - - - - Descend to defined state - - - - - -
+	// - - - - - - Initilizing - - - - - - -
+	log.Println("Initializing Elevator %d with port %d....", cfg.ID, cfg.Port)
+	elevio.Init(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
+
+	// Event channels for elevator
+	obstructionEvent_ch := make(chan bool, 1024)
+	buttonEvent_ch := make(chan elevio.ButtonEvent, 1024)
+	reachFloorEvent_ch := make(chan int, 1024)
+
+	// Channels for orders
+	orderBuffer := make(chan []order.Order)
+	ordersConfirmed := make(chan []order.Order)
+	globalOrderCompleted_ch := make(chan [][]bool)
+
+
+	// Channels for P2P
+	peersTx_enable := make(chan bool)
+	peersRx_state_ch := make(chan peers.PeerUpdate)
+	peersRx_GlobalOrder_ch := make(chan peers.PeerUpdate)
+
+	buttonEvent := make(chan )
+	reachFloorEvent := make(chan )
+	stopEvent := make(chan )
+	obstructionEvent := make(chan )
+	
+	// - - - - - - Descend to defined state - - - - - - 
 	reachFloor := false
 	elevio.SetMotorDirection(elevio.MD_Down)
 	for reachFloor != true {
