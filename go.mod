@@ -9,4 +9,7 @@ replace elevatorControl => ./elevatorControl
 require networkDriver v0.0.0
 replace networkDriver => ./networkDriver
 
+require order v0.0.0
+replace order => ./order
+
 go 1.25.5
