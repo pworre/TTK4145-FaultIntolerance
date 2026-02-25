@@ -67,8 +67,14 @@ func NewStartElevator(startFloor int) Elevator {
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
 }
+func PollObstruction(obstructionEvent chan bool) {
+	elevio.PollObstructionSwitch(obstructionEvent)
+}
 func FloorSensor() int {
 	return elevio.GetFloor()
+}
+func GetObstruction() bool {
+	return elevio.GetObstruction()
 }
 func FloorIndicator(newFloor int) {
 	elevio.SetFloorIndicator(newFloor)
@@ -91,8 +97,8 @@ func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
 	}
 }
 
-func HardwareInit() int {
-	elevio.Init("localhost:15657", N_FLOORS)
+func HardwareInit(addr string, numFloors int) int {
+	elevio.Init(addr, numFloors)
 
 	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
 	SetAllLights(allLightsOff)
