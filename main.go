@@ -44,8 +44,8 @@ func main() {
 	go peers.Receiver(cfg.Port, peersRx_state_ch)
 	go peers.Receiver(cfg.Port, peersRx_GlobalOrder_ch)
 
-	go elevio.PollButtons(buttonEvent_ch)
-	go elevio.PollObstructionSwitch(obstructionEvent_ch)
-	go elevio.PollFloorSensor(reachFloorEvent_ch)
+	go elevator.PollButtons(buttonEvent_ch)
+	go elevator.PollObstructionSwitch(obstructionEvent_ch)
+	go elevator.PollFloorSensor(reachFloorEvent_ch)
 	// TODO: Add "fsm" for goroutine with orderAssignment
 }

@@ -115,3 +115,7 @@ func PollButtons(buttonEvent chan ButtonEvent) {
 		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
 	}
 }
+
+func PollObstructionSwitch(obstructionEvent chan int) {
+
+}
