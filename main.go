@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 	"networkDriver/peers"
-	"order"
+	"syncOrders"
 )
 
 const PEERS_PORT int = 34933
@@ -49,9 +49,10 @@ func main() {
 	stopInactivityTimer := make(chan bool)
 
 	// Channels for orders
-	orderBuffer := make(chan []order.Order, 1024)
-	ordersConfirmed := make(chan []order.Order, 1024)
-	globalOrderCompleted := make(chan [][]bool)
+	orderBuffer := make(chan syncOrders.Order)
+	//ordersConfirmed := make(chan []syncOrders.Order)
+	//globalOrderCompleted_ := make(chan [][]bool)
+
 
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
@@ -67,7 +68,7 @@ func main() {
 	go elevator.PollObstruction(obstructionEvent)
 	go elevator.PollFloorSensor(reachFloorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-
+	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
