@@ -12,4 +12,7 @@ replace networkDriver => ./networkDriver
 require syncOrders v0.0.0
 replace syncOrders => ./syncOrders
 
+require config v0.0.0
+replace config => ./config
+
 go 1.25.5

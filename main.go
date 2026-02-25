@@ -1,10 +1,10 @@
 package main
 
 import (
+	"config"
 	"elevatorControl/elevator"
 	"elevatorControl/fsm"
 	"elevatorControl/timer"
-	"elevator_project/config"
 	"fmt"
 	"log"
 	"networkDriver/peers"
@@ -52,7 +52,6 @@ func main() {
 	orderBuffer := make(chan syncOrders.Order)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
-
 
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
