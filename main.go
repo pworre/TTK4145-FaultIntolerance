@@ -5,7 +5,7 @@ import (
 	"elevator_project/config"
 	"elevatorControl/elevator"
 	"elevatorDriver/elevio"
-	"order"
+	"syncOrders"
 	"fmt"
 	"log"
 )
@@ -20,14 +20,14 @@ func main() {
 	elevio.Init(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
 
 	// Event channels for elevator
-	obstructionEvent_ch := make(chan bool, 1024)
-	buttonEvent_ch := make(chan elevio.ButtonEvent, 1024)
-	reachFloorEvent_ch := make(chan int, 1024)
+	obstructionEvent := make(chan bool, 1024)
+	buttonEvent := make(chan elevio.ButtonEvent, 1024)
+	reachFloorEvent := make(chan int, 1024)
 
 	// Channels for orders
-	orderBuffer := make(chan []order.Order)
-	ordersConfirmed := make(chan []order.Order)
-	globalOrderCompleted_ch := make(chan [][]bool)
+	orderBuffer := make(chan syncOrders.Order)
+	//ordersConfirmed := make(chan []syncOrders.Order)
+	//globalOrderCompleted_ := make(chan [][]bool)
 
 
 	// Channels for P2P
@@ -61,4 +61,5 @@ func main() {
 	go elevio.PollObstructionSwitch(obstructionEvent_ch)
 	go elevio.PollFloorSensor(reachFloorEvent_ch)
 	// TODO: Add "fsm" for goroutine with orderAssignment
+	go syncOrders.orderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
 }

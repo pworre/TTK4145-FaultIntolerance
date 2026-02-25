@@ -1,33 +1,31 @@
-package order
+package syncOrders
 
 import (
-	"elevatorControl/elevator"
 	"elevatorDriver/elevio"
 	"networkDriver/bcast"
-	"fmt"
 	"log"
-	"order"
-	"elevator_project/config"
+	"config"
 	"networkDriver/peers"
 )
 
 // ? Peer routing table [1, 2, 3, 4, ..., n] - Makes order of who transmits to who
 /*
-This file contains all struct and functions for order syncronization. 
-Each node is sharing a OrderToSyncMap which is a map of their orders to be synced. 
-They all share the confirmed list of orders "OrdersConfirmed"
+This file contains all struct and functions for order syncronization between peers on the network.
+Each node is sending a OrderToSyncMap which is a map of what each node's version of the different 
+nodes and their order to be synced. After a order has been synced, either confirmed_request or ready_to_delete, 
+it is added/removed from the confirmed hall-/cab-order list. Every node has a local list for confirmed hall-orders,
+and a map for cab-orders where the key is the peer-id. 
 
 The struct of the OrderToSyncMap is:
-
 {
-        Order{ID:"1", OrderType:HALL, OrderFloor:2, State:COS_UNCONFIRMED},
-        Order{ID:"2", Floor:3, State:Pending},
-        Order{ID:"3", Floor:1, State:Completed},
+        "Peer1": Order{ID:"Peer1", OrderType:HALL, OrderFloor:2, State:COS_UNCONFIRMED_REQUEST},
+        "Peer2": Order{ID:"Peer2", OrderType:CAB, Floor:3, State:COS_UNCONFIRMED_DELETION},
+        "Peer3": Order{ID:"Peer3", OrderType:HALL, Floor:-1, State:COS_NONE},
+		.
+		.
+		.
+		"PeerN": Order{ID:"PeerN", OrderType:HALL, Floor:-1, State:COS_NONE},
 }
-
-
-CASE 1 : Increasing order of peerID
-List[PeerID] = order
 */
 
 type orderType int 
@@ -61,17 +59,16 @@ type OrderNetworkMsg struct {
 	StateCounter			uint64
 }
 
-const bcast_PORT = 25532
+const G_bcast_PORT = 25532
 
-func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int) {
-	cfg := config.ParseFlag()
+func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan int, cfg config.Config) {
 	myID := cfg.ID
 	
 	networkRx := make(chan OrderNetworkMsg, 1024)
 	networkTx := make(chan OrderNetworkMsg, 1024)
 	
-	go bcast.Transmitter(bcast_PORT, networkTx)
-	go bcast.Receiver(bcast_PORT, networkRx)
+	go bcast.Transmitter(G_bcast_PORT, networkTx)
+	go bcast.Receiver(G_bcast_PORT, networkRx)
 	
 	orderToSync := Order{
 		PeerID:				myID,
@@ -82,7 +79,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 	// MAPS for syncronization use
 	orderToSyncMap := make(map[string]Order)
-	orderToSyncMap[myID] = append(myID, orderToSync)
+	orderToSyncMap[myID] = orderToSync
 
 	ordersConfirmed_HALL := make([]Order, 0)
 	ordersConfirmed_CAB := make(map[string][]Order)
@@ -152,7 +149,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			// Save maps if newer state
 			if msgReceived.StateCounter > msgTransmitting.StateCounter {
 				orderToSyncMap = msgReceived.OrderToSyncMap
-				ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+				ordersConfirmed_CAB[msgReceived.PeerID] = msgReceived.OrdersConfirmed_CAB
 				ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
 				msgTransmitting.StateCounter = msgReceived.StateCounter - 1
 			}
@@ -163,7 +160,7 @@ func orderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 				// ! WILL isPeerSynced be reset each time a new order is added to orderSyncBuffer ????
 				isAllPeersSynced := true
 				for _, peerID := range(activePeersList) {
-					if isPeerSynced[peerID] == false {
+					if !isPeerSynced[peerID] {
 						isAllPeersSynced = false
 					}
 				}
