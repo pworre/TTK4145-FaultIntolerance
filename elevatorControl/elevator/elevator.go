@@ -60,15 +60,20 @@ func NewStartElevator(startFloor int) Elevator {
 	}
 }
 
-
 // These functions exist to maintain that all interactions with the psysical world go through the elevator module,
 // maintaining good module separation and simplifying module interfaces
 
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
 }
+func PollObstruction(obstructionEvent chan bool) {
+	elevio.PollObstructionSwitch(obstructionEvent)
+}
 func FloorSensor() int {
 	return elevio.GetFloor()
+}
+func GetObstruction() bool {
+	return elevio.GetObstruction()
 }
 func FloorIndicator(newFloor int) {
 	elevio.SetFloorIndicator(newFloor)
@@ -91,15 +96,16 @@ func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
 	}
 }
 
-func HardwareInit() int {
-	elevio.Init("localhost:15657", N_FLOORS)
+func HardwareInit(addr string, numFloors int) int {
+	elevio.Init(addr, numFloors)
 
 	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
 	SetAllLights(allLightsOff)
 	DoorLight(false)
 
 	SetMotorDirection(D_Down)
-	for FloorSensor() == -1 {}
+	for FloorSensor() == -1 {
+	}
 	SetMotorDirection(D_Stop)
 
 	return FloorSensor()
@@ -114,8 +120,4 @@ func PollButtons(buttonEvent chan ButtonEvent) {
 		event := <-btnEvent
 		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
 	}
-}
-
-func PollObstructionSwitch(obstructionEvent chan int) {
-
 }
