@@ -76,7 +76,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 	
 	orderToSync := Order{
 		PeerID:				myID,
-		OrderType: 			HALL,
+		OrderType: 			elevator.B_Cab,
 		OrderFloor: 		-1,
 		CurrentOrderState: 	COS_NONE,
 	}
@@ -194,10 +194,10 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 
 					// Check if confirmed: Then add to confirmed list
 					if orderToSync.CurrentOrderState == COS_CONFIRMED_REQUEST {
-						if orderToSync.OrderType == HALL {
+						if orderToSync.OrderType == elevator.B_HallDown || orderToSync.OrderType == elevator.B_HallUp {
 							ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
 						}
-						if orderToSync.OrderType == CAB {
+						if orderToSync.OrderType == elevator.B_Cab {
 							ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
 						}
 
@@ -209,10 +209,10 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 		case orderToDelete := <- orderDeleteBuffer:
 			// Check which type of list to delete from
 			listToModify := []Order{}
-			if orderToDelete.OrderType == HALL {
+			if isHallOrder(orderToDelete) {
 				listToModify = ordersConfirmed_HALL
 			}
-			if orderToDelete.OrderType == CAB {
+			if isCabOrder(orderToDelete) {
 				listToModify = ordersConfirmed_CAB[orderToDelete.PeerID]
 			}
 
@@ -224,10 +224,10 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 						log.Println("Could not pop order")
 					}
 					// Replace list
-					if orderToDelete.OrderType == HALL {
+					if isHallOrder(orderToDelete) {
 						ordersConfirmed_HALL = newOrderList
 					}
-					if orderToDelete.OrderType == CAB {
+					if isCabOrder(orderToDelete) {
 						ordersConfirmed_CAB[myID] = newOrderList
 					}
 				}
@@ -334,4 +334,18 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeers
 	newAssignment := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
 	assignEvent <- newAssignment
 	}
+}
+
+func isCabOrder(order Order) bool {
+	if order.OrderType == elevator.B_Cab {
+		return true
+	}
+	return false
+}
+
+func isHallOrder(order Order) bool {
+	if order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp {
+		return true
+	}
+	return false
 }
