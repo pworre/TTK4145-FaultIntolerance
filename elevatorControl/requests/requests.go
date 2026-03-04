@@ -102,6 +102,33 @@ func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.
 			(btnType == elevator.B_Cab))
 }
 
+func ButtonToClearAtCurrentFloor(e elevator.Elevator) (bool, bool) {
+
+	shouldClearUpButton := false
+	shouldClearDownButton := false
+
+	switch e.Direction {
+	case elevator.D_Up:
+		if !requestsAbove(e) && !e.Requests[e.Floor][elevator.B_HallUp] {
+			shouldClearDownButton = true
+		}
+		shouldClearUpButton = true
+
+	case elevator.D_Down:
+		if !requestsBelow(e) && !e.Requests[e.Floor][elevator.B_HallDown] {
+			shouldClearUpButton = true
+		}
+		shouldClearDownButton = true
+
+	case elevator.D_Stop:
+		shouldClearUpButton = true
+		shouldClearDownButton = true
+	}
+	
+	return shouldClearUpButton, shouldClearDownButton
+}
+
+/*
 func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	e.Requests[e.Floor][elevator.B_Cab] = false
 	switch e.Direction {
@@ -124,3 +151,4 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	
 	return e
 }
+	*/
