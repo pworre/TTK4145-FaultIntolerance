@@ -28,6 +28,17 @@ The struct of the OrderToSyncMap is:
 		.
 		"PeerN": Order{ID:"PeerN", OrderType:HALL, Floor:-1, State:COS_NONE},
 }
+
+for-select overview:
+	- buttonEvent					-	Take button press and add it to orderSyncBuffer
+	- reachFloorEvent				-	Check if orders are completed and add it to orderSyncBuffer for deletion
+	- orderSyncBuffer				-	Sync orders with other peers on network
+	- elevatorState					-	Receives elevator states for use in use for hallRequestAssigner
+	- networkRx						-	Receives messages from other peers
+	- orderConfirmedBuffer			-	Receives confirmedOrders and adds it to confirmed lists
+	- orderDeleteBuffer				-	Receives orders to delete and removed t
+	- txMsgUpdate
+	- peerUpdate
 */
 
 type currentOrderState int
@@ -183,25 +194,21 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 					}
 				}
 				if isAllPeersSynced {
-					// Check if unconfirmed: then need to sync it
-					if orderToSyncMap[myID].CurrentOrderState == COS_UNCONFIRMED_REQUEST {
+					switch orderToSync.CurrentOrderState {
+					case COS_UNCONFIRMED_REQUEST:
 						orderToSync.CurrentOrderState = COS_CONFIRMED_REQUEST
 						orderSyncBuffer <-orderToSync
-					}
-					if orderToSync.CurrentOrderState == COS_UNCONFIRMED_DELETION {
+					case COS_UNCONFIRMED_DELETION:
 						orderToSync.CurrentOrderState = COS_READY_TO_DELETE
 						orderDeleteBuffer <-orderToSync
-					}
-
-					// Check if confirmed: Then add to confirmed list
-					if orderToSync.CurrentOrderState == COS_CONFIRMED_REQUEST {
+					case COS_CONFIRMED_REQUEST:
 						orderConfirmedBuffer <- orderToSync
-
-						// ? orderToSyncMap[myID] = orderToSync
-						// ? networkTx <- Encode(msgTransmitting)
+					case COS_READY_TO_DELETE:
+						orderDeleteBuffer <- orderToSync
 					}
 				}
 			}
+
 		case orderConfirmed := <- orderConfirmedBuffer:
 			if isHallOrder(orderConfirmed) {
 				ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
@@ -209,7 +216,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			if isCabOrder(orderConfirmed) {
 				ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
 			}
-			
+
 		case orderToDelete := <- orderDeleteBuffer:
 			// Check which type of list to delete from
 			listToModify := []Order{}
