@@ -2,6 +2,7 @@ package syncOrders
 
 import (
 	"elevatorControl/elevator"
+	"elevatorControl/requests"
 	"networkDriver/bcast"
 	"log"
 	"encoding/json"
@@ -71,7 +72,7 @@ type ReachFloor struct {
 
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -116,17 +117,32 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevator.ButtonEve
 
 	for {
 		select {
-		case buttonPressed := <-buttonEvent:
+		case newRequest := <-requestEvent:
 			orderToAdd := Order{
-				OrderType: 			buttonPressed.Button,
-				OrderFloor: 		buttonPressed.Floor,
+				PeerID: 			cfg.ID,
+				OrderType: 			newRequest.Button,
+				OrderFloor: 		newRequest.Floor,
 				CurrentOrderState: 	COS_UNCONFIRMED_REQUEST,
 			}
 			orderSyncBuffer <-orderToAdd
 
+
+			/*
+		case orderRemovalRequest := <-removeCompletedOrderRequest:
+			// TODO: for loop making all orders and adding to buffer?
+			orderToRemove := Order{
+				PeerID: 			cfg.ID,
+				OrderType: 			newRequest.Button,
+				OrderFloor: 		newRequest.Floor,
+				CurrentOrderState: 	COS_UNCONFIRMED_REQUEST,
+			}
+			orderSyncBuffer <-orderToAdd
+			*/
+
+
 		case reachFloor := <-reachFloorEvent:
-			currentFloor := reachFloor.currentFloor
-			currentDirection := reachFloor.currentDirection
+			currentFloor := reachFloor.Floor
+			currentDirection := reachFloor.Direction
 
 			// CAB ORDERS
 			for _, order := range(ordersConfirmed_CAB[myID]) {
@@ -137,11 +153,26 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevator.ButtonEve
 				}
 			}
 			// HALL ORDERS
+			clearUpButton, clearDownButton := requests.ButtonToClearAtCurrentFloor(elevator.NewElevator(currentFloor, currentDirection, elevator.EB_Idle)) // Behaviour irrelevant, should perhaps factor out so as to not have to call with an arbitrary behaviour
+			
 			for _, order := range(ordersConfirmed_HALL) {
-				if order.OrderFloor == currentFloor && order.OrderType == currentDirection {
+
+				if clearUpButton{
+
+					if order.OrderFloor == currentFloor && order.OrderType == elevator.B_HallUp {
 					completedOrder := order
 					completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
 					orderSyncBuffer <-completedOrder
+					}
+
+				} else if clearDownButton{
+
+					if order.OrderFloor == currentFloor && order.OrderType == elevator.B_HallUp {
+					completedOrder := order
+					completedOrder.CurrentOrderState = COS_UNCONFIRMED_DELETION
+					orderSyncBuffer <-completedOrder
+					}
+
 				}
 			}
 
@@ -202,6 +233,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevator.ButtonEve
 					}
 				}
 			}
+
 		case orderToDelete := <- orderDeleteBuffer:
 			// Check which type of list to delete from
 			listToModify := []Order{}

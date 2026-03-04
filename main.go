@@ -33,7 +33,7 @@ func main() {
 	// Input message channels for events in finite state machine
 	obstructionEvent := make(chan bool)
 	buttonEvent := make(chan elevator.ButtonEvent)
-	reachFloorEvent := make(chan int)
+	floorEvent := make(chan int)
 	doorTimeout := make(chan bool)
 
 	// Output message channels for performing actions on elevator hardware
@@ -46,9 +46,12 @@ func main() {
 
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
-	stopInactivityTimer := make(chan bool)
+	resetInactivityTimer := make(chan bool)
 
 	// Channels for orders
+	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
+	reachFloorEvent := make(chan elevator.FloorDirectionPair)
+	requestEvent := make(chan elevator.ButtonEvent)
 	orderBuffer := make(chan syncOrders.Order)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
@@ -63,24 +66,26 @@ func main() {
 	go peers.Receiver(cfg.Port, peersRx_state)
 	go peers.Receiver(cfg.Port, peersRx_GlobalOrder)
 
-	go elevator.PollButtons(buttonEvent)
-	go elevator.PollObstruction(obstructionEvent)
-	go elevator.PollFloorSensor(reachFloorEvent)
+	//go elevator.PollButtons(buttonEvent)
+	//go elevator.PollObstruction(obstructionEvent)
+	//go elevator.PollFloorSensor(floorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
 	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg, peerUpdate)
 	// - - - - - - Deploying - - - - - - -
 
-	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
+	go timer.Timers(resetInactivityTimer, resetDoorTimer, doorTimeout)
 	go elevator.PollButtons(buttonEvent)
-	go elevator.PollFloorSensor(reachFloorEvent)
+	go elevator.PollFloorSensor(floorEvent)
+	go elevator.PollObstruction(obstructionEvent)
 
 	// TODO: change the inut parameters from buttonEvent to something else, currently the elevators accept all button presses
 	// Finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor,
-		buttonEvent, reachFloorEvent,
+		buttonEvent, floorEvent,
 		doorTimeout, setFloorIndicator,
-		setLights, changeMotorDirection,
-		openDoor, closeDoor, keepDoorOpen)
+		setLights, assignEvent, changeMotorDirection,
+		reachFloorEvent, requestEvent,
+		openDoor, closeDoor, keepDoorOpen, resetInactivityTimer)
 
 	// Finite state machine action handling
 	for {

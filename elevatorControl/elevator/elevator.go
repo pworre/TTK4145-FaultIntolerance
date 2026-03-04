@@ -28,6 +28,11 @@ type ButtonEvent struct {
 	Button Button
 }
 
+type FloorDirectionPair struct {
+	Floor			int
+	Direction		MotorDirection
+}
+
 type ElevatorBehaviour int
 
 const (
