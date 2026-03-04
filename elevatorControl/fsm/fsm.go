@@ -2,7 +2,6 @@ package fsm
 
 import (
 	"elevatorControl/elevator"
-	hallRequestAssigner "elevatorControl/hra"
 	"elevatorControl/requests"
 	"networkDriver/peers"
 	"os"
@@ -14,7 +13,7 @@ func StateMachineLoop(startFloor int,
 	buttonEvent chan elevator.ButtonEvent, floorEvent chan int, obstructionEvent chan bool,
 	doorTimeout chan bool, setFloorIndicator chan int, inactivityTimeout chan bool, keepObstructed chan bool, obstructionTimeout chan bool,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	assignEvent chan hallRequestAssigner.OrderAssignments,
+	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	changeMotorDirection chan elevator.MotorDirection,
 	reachFloorEvent chan elevator.FloorDirectionPair,
 	requestEvent chan elevator.ButtonEvent,

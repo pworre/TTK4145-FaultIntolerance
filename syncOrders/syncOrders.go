@@ -3,7 +3,7 @@ package syncOrders
 import (
 	"elevatorControl/elevator"
 	"elevatorControl/requests"
-	"elevatorControl/hra"
+	"elevatorControl/hallRequestAssigner"
 	"networkDriver/bcast"
 	"log"
 	"encoding/json"
@@ -76,7 +76,7 @@ type ReachFloor struct {
 
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -328,7 +328,7 @@ func Decode(out []byte) OrderNetworkMsg {
 	return incomingMsg
 }
 
-func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeersList []string, allElevatorStates map[string]elevator.Elevator, ordersConfirmed_CAB map[string][]Order, myID string, assignEvent chan<- hallRequestAssigner.OrderAssignments) {
+func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeersList []string, allElevatorStates map[string]elevator.Elevator, ordersConfirmed_CAB map[string][]Order, myID string, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	hraInput := hallRequestAssigner.HRAInput{
 		HallRequests: make([][2]bool, elevator.N_FLOORS),
 		States: make(map[string]hallRequestAssigner.HRAElevState),
@@ -371,7 +371,8 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeers
 			CabRequests: cabRequests_hra,
 	}
 	
-	newAssignment := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
+	newAssignmentMap := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
+	newAssignment := newAssignmentMap[myID]
 	assignEvent <- newAssignment
 	}
 }
