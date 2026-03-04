@@ -89,6 +89,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 	ordersConfirmed_CAB := make(map[string][]Order)
 
 	orderDeleteBuffer := make(chan Order, 1024)
+	orderConfirmedBuffer := make(chan Order, 1024)
 	txMsgUpdate := make(chan bool, 1024)
 
 	activePeersList := make([]string, 0)
@@ -194,18 +195,21 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 
 					// Check if confirmed: Then add to confirmed list
 					if orderToSync.CurrentOrderState == COS_CONFIRMED_REQUEST {
-						if orderToSync.OrderType == elevator.B_HallDown || orderToSync.OrderType == elevator.B_HallUp {
-							ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
-						}
-						if orderToSync.OrderType == elevator.B_Cab {
-							ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
-						}
+						orderConfirmedBuffer <- orderToSync
 
-						orderToSyncMap[myID] = orderToSync
-						networkTx <- Encode(msgTransmitting)
+						// ? orderToSyncMap[myID] = orderToSync
+						// ? networkTx <- Encode(msgTransmitting)
 					}
 				}
 			}
+		case orderConfirmed := <- orderConfirmedBuffer:
+			if isHallOrder(orderConfirmed) {
+				ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
+			}
+			if isCabOrder(orderConfirmed) {
+				ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
+			}
+			
 		case orderToDelete := <- orderDeleteBuffer:
 			// Check which type of list to delete from
 			listToModify := []Order{}
