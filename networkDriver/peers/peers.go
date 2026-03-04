@@ -60,6 +60,8 @@ func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 
 	conn := conn.DialBroadcastUDP(port)
 
+	log.Printf("Receiver listening on port %d", port)
+
 	for {
 		updated := false
 

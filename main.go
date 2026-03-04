@@ -68,8 +68,8 @@ func main() {
 	peersRx_status := make(chan peers.PeerUpdate, 1024)
 
 	// - - - - - - GoRoutines - - - - - -
-	go peers.Transmitter(cfg.Port, cfg.ID, peersTx_enable)
-	go peers.Receiver(cfg.Port, cfg.ID, peersRx_status)
+	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
+	go peers.Receiver(PEERS_PORT, cfg.ID, peersRx_status)
 
 	//go elevator.PollButtons(buttonEvent)
 	//go elevator.PollObstruction(obstructionEvent)
