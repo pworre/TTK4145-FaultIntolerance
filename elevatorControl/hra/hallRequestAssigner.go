@@ -6,6 +6,7 @@ package hallRequestAssigner
 
 import (
 	"encoding/json"
+	"elevatorControl/elevator"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -26,7 +27,7 @@ type HRAInput struct {
 	States       map[string]HRAElevState `json:"states"`
 }
 
-type OrderAssignments map[string][][]bool
+type OrderAssignments map[string][elevator.N_FLOORS][elevator.N_BUTTONS]bool
 
 func Encode(input HRAInput) string {
 
