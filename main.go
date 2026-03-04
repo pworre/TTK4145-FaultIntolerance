@@ -36,6 +36,7 @@ func main() {
 	reachFloorEvent := make(chan int)
 	doorTimeout := make(chan bool)
 
+
 	// Output message channels for performing actions on elevator hardware
 	setFloorIndicator := make(chan int)
 	setLights := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
@@ -50,24 +51,23 @@ func main() {
 
 	// Channels for orders
 	orderBuffer := make(chan syncOrders.Order)
+	elevatorStateCh := make(chan elevator.Elevator)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
 
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
-	peersRx_state := make(chan peers.PeerUpdate)
-	peersRx_GlobalOrder := make(chan peers.PeerUpdate)
+	peersRx_status := make(chan peers.PeerUpdate)
 
 	// - - - - - - GoRoutines - - - - - -
 	go peers.Transmitter(cfg.Port, cfg.ID, peersTx_enable)
-	go peers.Receiver(cfg.Port, peersRx_state)
-	go peers.Receiver(cfg.Port, peersRx_GlobalOrder)
+	go peers.Receiver(cfg.Port, peersRx_status)
 
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollObstruction(obstructionEvent)
 	go elevator.PollFloorSensor(reachFloorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
+	go syncOrders.OrderSync(orderBuffer, elevatorStateCh, buttonEvent, reachFloorEvent, cfg, peersRx_status)
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)

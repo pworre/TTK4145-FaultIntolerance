@@ -1,7 +1,8 @@
 package syncOrders
 
 import (
-	"elevatorDriver/elevio"
+	"elevatorControl/elevator"
+	"elevatorControl/hra"
 	"networkDriver/bcast"
 	"log"
 	"encoding/json"
@@ -29,8 +30,6 @@ The struct of the OrderToSyncMap is:
 }
 */
 
-// TODO: Remove all elevio-use (after merged)
-
 type orderType int 
 const (
 	HALL = 0
@@ -49,29 +48,30 @@ const (
 
 type Order struct {
 	PeerID				string
-	OrderType 			elevio.ButtonType
+	OrderType 			elevator.Button
 	OrderFloor			int
 	CurrentOrderState 	currentOrderState
 }
 
 type OrderNetworkMsg struct {
-	PeerID					string					`json:"peerID"`
-	OrderToSyncMap			map[string]Order		`json:"orderToSyncMap"`
-	OrdersConfirmed_HALL	[]Order					`json:"ordersConfirmed_HALL"`
-	OrdersConfirmed_CAB		[]Order					`json:"ordersConfirmed_CAB"`
-	StateCounter			uint64					`json:"stateCounter"`
+	PeerID					string							`json:"peerID"`
+	ElevatorState			elevator.Elevator				`json:"elevatorState"`
+	OrderToSyncMap			map[string]Order				`json:"orderToSyncMap"`
+	OrdersConfirmed_HALL	[]Order							`json:"ordersConfirmed_HALL"`
+	OrdersConfirmed_CAB		[]Order							`json:"ordersConfirmed_CAB"`
+	StateCounter			uint64							`json:"stateCounter"`
 }
 
 // ! MEANT TO BE IMPLEMENTED IN ELEVATOR !
 type ReachFloor struct {
 	currentFloor			int
-	currentDirection		elevio.ButtonType
+	currentDirection		elevator.Button
 }
 // ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! 
 
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, buttonEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -99,6 +99,14 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 
 	activePeersList := make([]string, 0)
 
+	allElevatorStates := make(map[string]elevator.Elevator)
+	allElevatorStates[myID] = elevator.Elevator{
+		Floor: 0,
+		Direction: elevator.D_Stop,
+		Requests: [elevator.N_FLOORS][elevator.N_BUTTONS]bool{},
+		Behaviour: elevator.EB_Idle,
+	}
+
 	isPeerSynced := make(map[string]bool, 0)
 	for _, peerID := range(activePeersList) {
 		isPeerSynced[peerID] = false
@@ -107,6 +115,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 	// This node's transmitting message
 	msgTransmitting := OrderNetworkMsg{
 		PeerID: 				myID, 
+		ElevatorState:			allElevatorStates[myID],
 		OrderToSyncMap:			orderToSyncMap,
 		OrdersConfirmed_HALL: 	nil,
 		OrdersConfirmed_CAB:	nil,
@@ -118,6 +127,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		select {
 		case buttonPressed := <-buttonEvent:
 			orderToAdd := Order{
+				PeerID:				myID,
 				OrderType: 			buttonPressed.Button,
 				OrderFloor: 		buttonPressed.Floor,
 				CurrentOrderState: 	COS_UNCONFIRMED_REQUEST,
@@ -149,10 +159,10 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 			orderToSyncMap[myID] = orderToHandle
 			txMsgUpdate <- true
 
-		/*
-		case networkOrders := <-ordersConfirmed:
-			* TODO: Add 'hallassigner' to choose next to do
-		*/
+		case newElevatorState := <-elevatorState:
+			// TODO: TAKE ELEVATOR STATE AS CHANNEL INPUT
+			allElevatorStates[myID] = newElevatorState
+			txMsgUpdate <- true
 
 		case msgReceivedBytes := <-networkRx:
 			msgReceived := Decode(msgReceivedBytes)
@@ -237,7 +247,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 				for _, peerID := range(activePeersList) {
 					isPeerSynced[peerID] = false
 				}
-
+				msgTransmitting.ElevatorState = allElevatorStates[myID]
 				msgTransmitting.OrderToSyncMap = orderToSyncMap
 				msgTransmitting.OrdersConfirmed_CAB = ordersConfirmed_CAB[myID]
 				msgTransmitting.OrdersConfirmed_HALL = ordersConfirmed_HALL
@@ -248,6 +258,7 @@ func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent
 		case newPeerUpdate := <-peerUpdate:
 			activePeersList = newPeerUpdate.Peers
 		}
+		SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL, activePeersList, allElevatorStates, ordersConfirmed_CAB, myID, assignEvent)
 	}
 }
 
@@ -276,9 +287,57 @@ func Encode(input OrderNetworkMsg) []byte {
 func Decode(out []byte) OrderNetworkMsg {
 
 	var incomingMsg OrderNetworkMsg
-	err := json.Unmarshal([]byte(out), &incomingMsg)
+	err := json.Unmarshal(out, &incomingMsg)
 	if err != nil {
 		log.Println("json.Unmarshal error: ", err)
 	}
 	return incomingMsg
+}
+
+func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeersList []string, allElevatorStates map[string]elevator.Elevator, ordersConfirmed_CAB map[string][]Order, myID string, assignEvent chan<- hallRequestAssigner.OrderAssignments) {
+	hraInput := hallRequestAssigner.HRAInput{
+		HallRequests: make([][2]bool, elevator.N_FLOORS),
+		States: make(map[string]hallRequestAssigner.HRAElevState),
+	}
+	for _, order := range(ordersConfirmed_HALL) {
+		hraInput.HallRequests[order.OrderFloor][order.OrderType] = true
+	}
+	for _, peerID := range(activePeersList) {
+		// convert elevator.behaviour [int] to hra.behaviour [string]
+		var elevBehaviour_hra string
+		switch allElevatorStates[peerID].Behaviour {
+			case elevator.EB_Idle:
+				elevBehaviour_hra = "idle"
+			case elevator.EB_Moving:
+				elevBehaviour_hra = "moving"
+			case elevator.EB_DoorOpen:
+				elevBehaviour_hra = "doorOpen"
+		}
+
+		var elevDirection_hra string
+		switch allElevatorStates[peerID].Direction {
+		case elevator.D_Up:
+			elevDirection_hra = "up"
+		case elevator.D_Stop:
+			elevDirection_hra = "stop"
+		case elevator.D_Down:
+			elevDirection_hra = "down"
+		}
+
+		cabRequests_hra := make([]bool, elevator.N_FLOORS)
+		for _, cabOrder := range(ordersConfirmed_CAB[myID]) {
+			cabRequests_hra[cabOrder.OrderFloor] = true
+		}
+
+
+		hraInput.States[peerID] = hallRequestAssigner.HRAElevState{
+			Behavior: elevBehaviour_hra,
+			Floor: allElevatorStates[peerID].Floor,
+			Direction: elevDirection_hra,
+			CabRequests: cabRequests_hra,
+	}
+	
+	newAssignment := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
+	assignEvent <- newAssignment
+	}
 }
