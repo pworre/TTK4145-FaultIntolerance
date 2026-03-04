@@ -124,6 +124,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 	for {
 		select {
 		case newRequest := <-requestEvent:
+			log.Printf("OMG I GOT A BUTTONPRESS!!!")
 			orderToAdd := Order{
 				PeerID:            myID,
 				OrderType:         newRequest.Button,
@@ -145,6 +146,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			*/
 
 		case reachFloor := <-reachFloorEvent:
+			log.Printf("OMG NEW FLOOR!!!")
 			currentFloor := reachFloor.Floor
 			currentDirection := reachFloor.Direction
 
@@ -190,6 +192,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			txMsgUpdate <- true
 
 		case msgReceivedBytes := <-networkRx:
+			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
 
 			// Save maps if newer state
@@ -229,6 +232,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			}
 
 		case orderConfirmed := <-orderConfirmedBuffer:
+			log.Printf("GUYS THERE IS A CONFIRMED ORDER")
 			if isHallOrder(orderConfirmed) {
 				ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderConfirmed)
 			}
@@ -275,6 +279,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			txMsgUpdate <- true
 
 		case txChanges := <-txMsgUpdate:
+			log.Printf("OKAY SO I THINK THERE IS CHANGES")
 			if txChanges {
 				// Set all peers to unsynced status
 				for _, peerID := range activePeersList {
@@ -286,9 +291,11 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 				msgTransmitting.OrdersConfirmed_HALL = ordersConfirmed_HALL
 				msgTransmitting.StateCounter += 1
 				networkTx <- Encode(msgTransmitting)
+				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			}
 
 		case newPeerUpdate := <-peerUpdate:
+			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
 		}
 		SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL, activePeersList, allElevatorStates, ordersConfirmed_CAB, myID, assignEvent)

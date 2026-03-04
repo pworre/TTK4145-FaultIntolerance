@@ -93,7 +93,7 @@ func main() {
 
 	// Finite state machine action handling
 	for {
-		log.Printf("Message 1")
+		log.Printf("OMG THE HARDWARE MUST CHANGE!")
 		select {
 		case newFloor := <-setFloorIndicator:
 			elevator.FloorIndicator(newFloor)
