@@ -4,6 +4,7 @@ import (
 	"config"
 	"elevatorControl/elevator"
 	"elevatorControl/fsm"
+	hallRequestAssigner "elevatorControl/hra"
 	"elevatorControl/timer"
 	"fmt"
 	"log"
@@ -55,7 +56,7 @@ func main() {
 	obstructionTimeout := make(chan bool)
 
 	// Channels for orders
-	assignEvent := make(chan map[string][elevator.N_FLOORS][elevator.N_BUTTONS]bool)
+	assignEvent := make(chan hallRequestAssigner.OrderAssignments)
 	reachFloorEvent := make(chan elevator.FloorDirectionPair)
 	requestEvent := make(chan elevator.ButtonEvent)
 	orderSyncBuffer := make(chan syncOrders.Order)
