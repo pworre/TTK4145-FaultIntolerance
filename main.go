@@ -67,7 +67,7 @@ func main() {
 	go elevator.PollObstruction(obstructionEvent)
 	go elevator.PollFloorSensor(reachFloorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
+	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg, peerUpdate)
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)

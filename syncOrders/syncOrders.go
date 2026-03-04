@@ -1,7 +1,7 @@
 package syncOrders
 
 import (
-	"elevatorDriver/elevio"
+	"elevatorControl/elevator"
 	"networkDriver/bcast"
 	"log"
 	"encoding/json"
@@ -49,7 +49,7 @@ const (
 
 type Order struct {
 	PeerID				string
-	OrderType 			elevio.ButtonType
+	OrderType 			elevator.Button
 	OrderFloor			int
 	CurrentOrderState 	currentOrderState
 }
@@ -65,13 +65,13 @@ type OrderNetworkMsg struct {
 // ! MEANT TO BE IMPLEMENTED IN ELEVATOR !
 type ReachFloor struct {
 	currentFloor			int
-	currentDirection		elevio.ButtonType
+	currentDirection		elevator.Button
 }
 // ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! 
 
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevio.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, buttonEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)

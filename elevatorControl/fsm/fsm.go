@@ -33,9 +33,9 @@ func StateMachineLoop(startFloor int,
 // Event handling functions
 
 func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
-						  setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-						  changeMotorDirection chan elevator.MotorDirection,
-						  openDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	changeMotorDirection chan elevator.MotorDirection,
+	openDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
 
 	// Copy of current state
 	nextState := currentState
@@ -75,10 +75,10 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 }
 
 func OnFloorArrival(currentState elevator.Elevator, newFloor int,
-					setFloorIndicator chan int,
-					setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-					changeMotorDirection chan elevator.MotorDirection,
-					openDoor chan bool) elevator.Elevator {
+	setFloorIndicator chan int,
+	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	changeMotorDirection chan elevator.MotorDirection,
+	openDoor chan bool) elevator.Elevator {
 
 	// Copy of current state
 	nextState := currentState
@@ -103,9 +103,9 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 }
 
 func OnDoorTimeout(currentState elevator.Elevator,
-				   setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-				   changeMotorDirection chan elevator.MotorDirection,
-				   closeDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	changeMotorDirection chan elevator.MotorDirection,
+	closeDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
 
 	// Copy of current state
 	nextState := currentState
@@ -120,7 +120,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			keepDoorOpen <- true
 			nextState = requests.ClearAtCurrentFloor(nextState)
 			setLights <- nextState.Requests
-			
+
 		case elevator.EB_Moving:
 			closeDoor <- true
 			changeMotorDirection <- nextState.Direction
