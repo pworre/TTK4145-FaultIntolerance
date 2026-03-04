@@ -66,8 +66,7 @@ type ReachFloor struct {
 
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
-func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, buttonEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan ReachFloor, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -125,8 +124,8 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 		case newRequest := <-requestEvent:
 			orderToAdd := Order{
 				PeerID:				myID,
-				OrderType: 			buttonPressed.Button,
-				OrderFloor: 		buttonPressed.Floor,
+				OrderType: 			newRequest.Button,
+				OrderFloor: 		newRequest.Floor,
 				CurrentOrderState: 	COS_UNCONFIRMED_REQUEST,
 			}
 			orderSyncBuffer <-orderToAdd

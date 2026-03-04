@@ -36,7 +36,6 @@ func main() {
 	floorEvent := make(chan int)
 	doorTimeout := make(chan bool)
 
-
 	// Output message channels for performing actions on elevator hardware
 	setFloorIndicator := make(chan int)
 	setLights := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
