@@ -65,11 +65,11 @@ func main() {
 
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
-	peersRx_status := make(chan peers.PeerUpdate)
+	peersRx_status := make(chan peers.PeerUpdate, 1024)
 
 	// - - - - - - GoRoutines - - - - - -
 	go peers.Transmitter(cfg.Port, cfg.ID, peersTx_enable)
-	go peers.Receiver(cfg.Port, peersRx_status)
+	go peers.Receiver(cfg.Port, cfg.ID, peersRx_status)
 
 	//go elevator.PollButtons(buttonEvent)
 	//go elevator.PollObstruction(obstructionEvent)

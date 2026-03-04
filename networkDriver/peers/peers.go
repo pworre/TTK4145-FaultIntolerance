@@ -51,7 +51,7 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 //
 // PARAMS: 
 // port = 
-func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
+func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 
 	var buf [1024]byte
 	var p PeerUpdate
@@ -63,9 +63,16 @@ func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
 		updated := false
 
 		conn.SetReadDeadline(time.Now().Add(interval))
-		n, _, _ := conn.ReadFrom(buf[0:])
+		n, _, err := conn.ReadFrom(buf[0:])
+		if err != nil {
+			continue
+		}
 
 		id := string(buf[:n])
+
+		if id == myID {
+			continue
+		}
 
 		// Adding new connection
 		p.New = ""
