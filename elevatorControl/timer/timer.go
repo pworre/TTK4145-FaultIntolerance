@@ -13,10 +13,12 @@ func initTimers() (*time.Timer, *time.Timer) {
 	return doorTimer, inactivityTimer
 }
 
-func Timers(stopInactivityTimer chan bool, resetDoorTimer chan bool, doorTimeout chan bool) {
+func Timers(resetInactivityTimer chan bool, stopInactivityTimer chan bool, resetDoorTimer chan bool, doorTimeout chan bool) {
 	doorTimer, inactivityTimer := initTimers()
 	for {
 		select {
+		case <-resetInactivityTimer:
+			inactivityTimer.Reset(INACTIVITY_TIMEOUT)
 		case <-stopInactivityTimer:
 			inactivityTimer.Stop()
 		case <-resetDoorTimer:
