@@ -337,15 +337,9 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeers
 }
 
 func isCabOrder(order Order) bool {
-	if order.OrderType == elevator.B_Cab {
-		return true
-	}
-	return false
+	return order.OrderType == elevator.B_Cab
 }
 
 func isHallOrder(order Order) bool {
-	if order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp {
-		return true
-	}
-	return false
+	return order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp
 }
