@@ -5,8 +5,8 @@ package hallRequestAssigner
 // Hall request assigner
 
 import (
-	"encoding/json"
 	"elevatorControl/elevator"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -60,7 +60,7 @@ func AssignOrders(jsonString string) string {
 		panic("OS not supported")
 	}
 
-	out, err := exec.Command("./"+hraExecutable, "-i", (jsonString)).CombinedOutput()
+	out, err := exec.Command("./elevatorControl/hallRequestAssigner/"+hraExecutable, "-i", (jsonString)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)
 		fmt.Println(string(out))

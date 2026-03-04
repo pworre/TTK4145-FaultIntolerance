@@ -3,7 +3,7 @@ set -e  # Exit immediately if a command fails
 
 # Paths
 PROJECT_ROOT="$(pwd)"
-HRA_PATH="$PROJECT_ROOT/elevatorControl/hra"
+HRA_PATH="$PROJECT_ROOT/elevatorControl/hallRequestAssigner"
 D_SRC_PATH="$PROJECT_ROOT/external/Project-resources/cost_fns/hall_request_assigner"
 JSONX_PATH="$D_SRC_PATH/d-json"
 
