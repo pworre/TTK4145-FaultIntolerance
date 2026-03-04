@@ -3,8 +3,10 @@ package fsm
 import (
 	"elevatorControl/elevator"
 	"elevatorControl/requests"
+
 	//"networkDriver/peers"
 	//"os"
+	"log"
 )
 
 // Finite state machine loop
@@ -22,6 +24,7 @@ func StateMachineLoop(startFloor int,
 	thisElevator := elevator.NewStartElevator(startFloor)
 
 	for {
+		log.Printf("Message 2")
 		select {
 		case buttonPressed := <-buttonEvent:
 			thisElevator = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, requestEvent)
