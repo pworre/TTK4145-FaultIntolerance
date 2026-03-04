@@ -10,7 +10,6 @@ import (
 	"networkDriver/peers"
 )
 
-// ? Peer routing table [1, 2, 3, 4, ..., n] - Makes order of who transmits to who
 /*
 This file contains all struct and functions for order syncronization between peers on the network.
 Each node is sending a OrderToSyncMap which is a map of what each node's version of the different 
@@ -37,8 +36,8 @@ for-select overview:
 	- networkRx						-	Receives messages from other peers
 	- orderConfirmedBuffer			-	Receives confirmedOrders and adds it to confirmed lists
 	- orderDeleteBuffer				-	Receives orders to delete and removed t
-	- txMsgUpdate
-	- peerUpdate
+	- txMsgUpdate					- 	Adds all variables to the transmitting object and transmits
+	- peerUpdate					-	Receives info about all peers on network
 */
 
 type currentOrderState int
