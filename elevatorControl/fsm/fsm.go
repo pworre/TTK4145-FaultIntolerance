@@ -107,9 +107,8 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 		}
 	}
 
-	// ! This should be moved to syncOrders, and it should probably take the global orderlist, not the local one
-	// TODO: Maybe make a "barrier" case in syncOrders? This could globally ask everyone to add/remove orders, and tell everyone to set lights
-	setLights <- nextState.Requests
+	// ! All setLights should now be moved to syncorders
+	//setLights <- nextState.Requests
 
 	// Return transformed state
 	return nextState
@@ -138,8 +137,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
-			// TODO: Same fix as above
-			setLights <- nextState.Requests
+			//setLights <- nextState.Requests
 			nextState.Behaviour = elevator.EB_DoorOpen
 		}
 	}
@@ -169,8 +167,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
-			// TODO: Same fix as above
-			setLights <- nextState.Requests
+			//setLights <- nextState.Requests
 
 		case elevator.EB_Moving:
 			closeDoor <- true
