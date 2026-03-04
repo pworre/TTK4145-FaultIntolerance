@@ -298,6 +298,9 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 		case newPeerUpdate := <-peerUpdate:
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
+			for _, str := range activePeersList {
+				log.Printf("Peer number: %s", str)
+			}
 		}
 		SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL, activePeersList, allElevatorStates, ordersConfirmed_CAB, myID, assignEvent)
 	}
