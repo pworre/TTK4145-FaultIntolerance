@@ -2,7 +2,6 @@ package syncOrders
 
 import (
 	"elevatorControl/elevator"
-	"elevatorControl/requests"
 	"elevatorControl/hra"
 	"networkDriver/bcast"
 	"log"
@@ -67,16 +66,9 @@ type OrderNetworkMsg struct {
 	StateCounter			uint64							`json:"stateCounter"`
 }
 
-// ! MEANT TO BE IMPLEMENTED IN ELEVATOR !
-type ReachFloor struct {
-	currentFloor			int
-	currentDirection		elevator.Button
-}
-// ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! 
-
 const G_bcast_PORT = 25532
 
-func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate) {
+func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevator, assignEvent chan<- hallRequestAssigner.OrderAssignments, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	myID := cfg.ID
 	
 	networkRx := make(chan []byte, 1024)
@@ -167,11 +159,11 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 				}
 			}
 			// HALL ORDERS
-			clearUpButton, clearDownButton := requests.ButtonToClearAtCurrentFloor(elevator.NewElevator(currentFloor, currentDirection, elevator.EB_Idle)) // Behaviour irrelevant, should perhaps factor out so as to not have to call with an arbitrary behaviour
+			shouldClearUpButton, shouldClearDownButton := whichButtonsShouldClear(currentFloor, currentDirection, orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID]))
 			
 			for _, order := range(ordersConfirmed_HALL) {
 
-				if clearUpButton{
+				if shouldClearUpButton{
 
 					if order.OrderFloor == currentFloor && order.OrderType == elevator.B_HallUp {
 					completedOrder := order
@@ -179,7 +171,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 					orderSyncBuffer <-completedOrder
 					}
 
-				} else if clearDownButton{
+				} else if shouldClearDownButton{
 
 					if order.OrderFloor == currentFloor && order.OrderType == elevator.B_HallUp {
 					completedOrder := order
@@ -240,11 +232,19 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 
 		case orderConfirmed := <- orderConfirmedBuffer:
 			if isHallOrder(orderConfirmed) {
-				ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToSync)
+				ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderConfirmed)
 			}
 			if isCabOrder(orderConfirmed) {
-				ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToSync)
+				ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderConfirmed)
 			}
+			txMsgUpdate <- true
+
+
+			// Reached Barrier state, we can now safely do side effects
+			buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+			setLights <- buttonsToLight
+
+			
 
 		case orderToDelete := <- orderDeleteBuffer:
 			// Check which type of list to delete from
@@ -270,6 +270,10 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 					if isCabOrder(orderToDelete) {
 						ordersConfirmed_CAB[myID] = newOrderList
 					}
+
+					// Reached Barrier state, we can now safely do side effects
+					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+					setLights <- buttonsToLight
 				}
 			}
 			
@@ -382,4 +386,66 @@ func isCabOrder(order Order) bool {
 
 func isHallOrder(order Order) bool {
 	return order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp
+}
+
+func orderListsToRequestArray(hallOrders []Order, cabOrders []Order) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
+
+	requestArray := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
+
+	for _, order := range(hallOrders) {
+		requestArray[order.OrderFloor][int(order.OrderType)] = true
+	}
+	for _, order := range(cabOrders) {
+		requestArray[order.OrderFloor][int(elevator.B_Cab)] = true
+	}
+
+	return requestArray
+}
+
+func whichButtonsShouldClear(floor int, direction elevator.MotorDirection, requests [elevator.N_FLOORS][elevator.N_BUTTONS]bool) (bool, bool) {
+
+	shouldClearUpButton := false
+	shouldClearDownButton := false
+
+	switch direction {
+	case elevator.D_Up:
+		if !requestsAbove(floor, direction, requests) && !requests[floor][elevator.B_HallUp] {
+			shouldClearDownButton = true
+		}
+		shouldClearUpButton = true
+
+	case elevator.D_Down:
+		if !requestsBelow(floor, direction, requests) && !requests[floor][elevator.B_HallDown] {
+			shouldClearUpButton = true
+		}
+		shouldClearDownButton = true
+
+	case elevator.D_Stop:
+		shouldClearUpButton = true
+		shouldClearDownButton = true
+	}
+	
+	return shouldClearUpButton, shouldClearDownButton
+}
+
+func requestsAbove(floor int, direction elevator.MotorDirection, requests [elevator.N_FLOORS][elevator.N_BUTTONS]bool) bool {
+	for f := floor + 1; f < elevator.N_FLOORS; f++ {
+		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+			if requests[f][btn] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func requestsBelow(floor int, direction elevator.MotorDirection, requests [elevator.N_FLOORS][elevator.N_BUTTONS]bool) bool {
+	for f := 0; f < floor; f++ {
+		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+			if requests[f][btn] {
+				return true
+			}
+		}
+	}
+	return false
 }

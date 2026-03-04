@@ -58,8 +58,8 @@ func main() {
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
 	reachFloorEvent := make(chan elevator.FloorDirectionPair)
 	requestEvent := make(chan elevator.ButtonEvent)
-	orderBuffer := make(chan syncOrders.Order)
-	elevatorStateCh := make(chan elevator.Elevator)
+	orderSyncBuffer := make(chan syncOrders.Order)
+	elevatorState := make(chan elevator.Elevator)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
 
@@ -75,7 +75,7 @@ func main() {
 	//go elevator.PollObstruction(obstructionEvent)
 	//go elevator.PollFloorSensor(floorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-	go syncOrders.OrderSync(orderBuffer, elevatorStateCh, buttonEvent, reachFloorEvent, cfg, peersRx_status)
+	go syncOrders.OrderSync(orderSyncBuffer, elevatorState, assignEvent, requestEvent, reachFloorEvent, cfg, peerUpdate, setLights)
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(resetObstructionTimer, resetInactivityTimer, resetDoorTimer, doorTimeout, inactivityTimeout, obstructionTimeout)
@@ -90,7 +90,7 @@ func main() {
 		doorTimeout, setFloorIndicator, inactivityTimeout, keepObstructed, obstructionTimeout,
 		setLights, assignEvent, changeMotorDirection,
 		reachFloorEvent, requestEvent,
-		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_state)
+		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_status)
 
 	// Finite state machine action handling
 	for {
