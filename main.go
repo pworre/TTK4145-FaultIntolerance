@@ -93,22 +93,25 @@ func main() {
 
 	// Finite state machine action handling
 	for {
-		log.Printf("OMG THE HARDWARE MUST CHANGE!")
 		select {
 		case newFloor := <-setFloorIndicator:
 			elevator.FloorIndicator(newFloor)
 
 		case requestList := <-setLights:
+			log.Printf("SET LIGHTS")
 			elevator.SetAllLights(requestList)
 
 		case dir := <-changeMotorDirection:
+			log.Printf("CHANGE DIRECTION")
 			elevator.SetMotorDirection(dir)
 
 		case <-openDoor:
+			log.Printf("OPEN THE DOOR")
 			elevator.DoorLight(true)
 			resetDoorTimer <- true
 
 		case <-closeDoor:
+			log.Printf("CLOSE THE DOOR")
 			elevator.DoorLight(false)
 
 		case <-keepDoorOpen:
