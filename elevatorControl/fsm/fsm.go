@@ -3,8 +3,8 @@ package fsm
 import (
 	"elevatorControl/elevator"
 	"elevatorControl/requests"
-	"networkDriver/peers"
-	"os"
+	//"networkDriver/peers"
+	//"os"
 )
 
 // Finite state machine loop
@@ -17,7 +17,7 @@ func StateMachineLoop(startFloor int,
 	changeMotorDirection chan elevator.MotorDirection,
 	reachFloorEvent chan elevator.FloorDirectionPair,
 	requestEvent chan elevator.ButtonEvent,
-	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool, peersRx_state chan peers.PeerUpdate) {
+	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) { // peersRx_status chan peers.PeerUpdate) {
 
 	elevator := elevator.NewStartElevator(startFloor)
 
@@ -36,14 +36,17 @@ func StateMachineLoop(startFloor int,
 			elevator = OnDoorTimeout(elevator, setLights, changeMotorDirection, reachFloorEvent, closeDoor, keepDoorOpen, stillActive)
 		case <-inactivityTimeout:
 
+			/* Debugging
 			if len(peersRx_state) > 1 {
 				os.Exit(2)
 			} else {
 				stillActive <- true
 			}
+			*/
+			stillActive <- true
 
 		case <-obstructionTimeout:
-			elevator = OnObstructionTimeout(elevator, peersRx_state, keepObstructed)
+			elevator = OnObstructionTimeout(elevator, keepObstructed)
 		case <-obstructionEvent:
 			elevator = OnObstructionEvent(elevator, keepDoorOpen, keepObstructed)
 		}
@@ -183,18 +186,21 @@ func OnDoorTimeout(currentState elevator.Elevator,
 }
 
 func OnObstructionTimeout(currentState elevator.Elevator,
-	peersRx_state chan peers.PeerUpdate, keepObstructed chan bool) elevator.Elevator {
+	keepObstructed chan bool) elevator.Elevator { // peersRx_state chan peers.PeerUpdate) elevator.Elevator {
 
 	nextState := currentState
 
 	switch nextState.Behaviour {
 
 	case elevator.EB_DoorOpen:
+		/* Debugging
 		if len(peersRx_state) > 1 {
 			os.Exit(1)
 		} else {
 			keepObstructed <- true
 		}
+		*/
+		keepObstructed <- true
 	}
 
 	// Return transformed state

@@ -18,7 +18,7 @@ func main() {
 	cfg := config.ParseFlag()
 
 	// - - - - - - Initilizing - - - - - - -
-	log.Println("Initializing Elevator %d with port %d....", cfg.ID, cfg.Port)
+	log.Printf("Initializing Elevator %d with port %d....", cfg.ID, cfg.Port)
 	startFloor := elevator.HardwareInit(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
 
 	for elevator.GetObstruction() {
@@ -83,14 +83,13 @@ func main() {
 	go elevator.PollFloorSensor(floorEvent)
 	go elevator.PollObstruction(obstructionEvent)
 
-	// TODO: change the inut parameters from buttonEvent to something else, currently the elevators accept all button presses
 	// Finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor,
 		buttonEvent, floorEvent, obstructionEvent,
 		doorTimeout, setFloorIndicator, inactivityTimeout, keepObstructed, obstructionTimeout,
 		setLights, assignEvent, changeMotorDirection,
 		reachFloorEvent, requestEvent,
-		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_status)
+		openDoor, closeDoor, keepDoorOpen, stillActive) ///peersRx_status)
 
 	// Finite state machine action handling
 	for {
