@@ -43,10 +43,16 @@ func main() {
 	openDoor := make(chan bool)
 	closeDoor := make(chan bool)
 	keepDoorOpen := make(chan bool)
+	keepObstructed := make(chan bool)
+	stillActive := make(chan bool)
 
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
-	stopInactivityTimer := make(chan bool)
+	resetInactivityTimer := make(chan bool)
+	resetObstructionTimer := make(chan bool)
+
+	inactivityTimeout := make(chan bool)
+	obstructionTimeout := make(chan bool)
 
 	// Channels for orders
 	orderBuffer := make(chan syncOrders.Order)
@@ -70,7 +76,7 @@ func main() {
 	go syncOrders.OrderSync(orderBuffer, buttonEvent, reachFloorEvent, cfg)
 	// - - - - - - Deploying - - - - - - -
 
-	go timer.Timers(stopInactivityTimer, resetDoorTimer, doorTimeout)
+	go timer.Timers(resetObstructionTimer, resetInactivityTimer, resetDoorTimer, doorTimeout, inactivityTimeout, obstructionTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(reachFloorEvent)
 
@@ -80,7 +86,7 @@ func main() {
 		buttonEvent, reachFloorEvent,
 		doorTimeout, setFloorIndicator,
 		setLights, changeMotorDirection,
-		openDoor, closeDoor, keepDoorOpen)
+		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_state)
 
 	// Finite state machine action handling
 	for {
@@ -103,6 +109,13 @@ func main() {
 
 		case <-keepDoorOpen:
 			resetDoorTimer <- true
+
+		case <-stillActive:
+			resetInactivityTimer <- true
+
+		case <-keepObstructed:
+			resetObstructionTimer <- true
 		}
+
 	}
 }
