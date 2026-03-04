@@ -43,10 +43,16 @@ func main() {
 	openDoor := make(chan bool)
 	closeDoor := make(chan bool)
 	keepDoorOpen := make(chan bool)
+	keepObstructed := make(chan bool)
+	stillActive := make(chan bool)
 
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
 	resetInactivityTimer := make(chan bool)
+	resetObstructionTimer := make(chan bool)
+
+	inactivityTimeout := make(chan bool)
+	obstructionTimeout := make(chan bool)
 
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
@@ -72,7 +78,7 @@ func main() {
 	go syncOrders.OrderSync(orderBuffer, elevatorStateCh, buttonEvent, reachFloorEvent, cfg, peersRx_status)
 	// - - - - - - Deploying - - - - - - -
 
-	go timer.Timers(resetInactivityTimer, resetDoorTimer, doorTimeout)
+	go timer.Timers(resetObstructionTimer, resetInactivityTimer, resetDoorTimer, doorTimeout, inactivityTimeout, obstructionTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
 	go elevator.PollObstruction(obstructionEvent)
@@ -80,11 +86,11 @@ func main() {
 	// TODO: change the inut parameters from buttonEvent to something else, currently the elevators accept all button presses
 	// Finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor,
-		buttonEvent, floorEvent,
-		doorTimeout, setFloorIndicator,
+		buttonEvent, floorEvent, obstructionEvent,
+		doorTimeout, setFloorIndicator, inactivityTimeout, keepObstructed, obstructionTimeout,
 		setLights, assignEvent, changeMotorDirection,
 		reachFloorEvent, requestEvent,
-		openDoor, closeDoor, keepDoorOpen, resetInactivityTimer)
+		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_state)
 
 	// Finite state machine action handling
 	for {
@@ -107,6 +113,13 @@ func main() {
 
 		case <-keepDoorOpen:
 			resetDoorTimer <- true
+
+		case <-stillActive:
+			resetInactivityTimer <- true
+
+		case <-keepObstructed:
+			resetObstructionTimer <- true
 		}
+
 	}
 }
