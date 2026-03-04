@@ -19,21 +19,21 @@ func StateMachineLoop(startFloor int,
 	requestEvent chan elevator.ButtonEvent,
 	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) { // peersRx_status chan peers.PeerUpdate) {
 
-	elevator := elevator.NewStartElevator(startFloor)
+	thisElevator := elevator.NewStartElevator(startFloor)
 
 	for {
 		select {
 		case buttonPressed := <-buttonEvent:
-			elevator = OnRequestButtonPress(elevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, requestEvent)
+			thisElevator = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, requestEvent)
 
 		case newAssignment := <-assignEvent:
-			elevator = OnNewAssignment(elevator, newAssignment, setLights, changeMotorDirection, reachFloorEvent, openDoor, keepDoorOpen, stillActive)
+			thisElevator = OnNewAssignment(thisElevator, newAssignment, setLights, changeMotorDirection, reachFloorEvent, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:
-			elevator = OnFloorArrival(elevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, reachFloorEvent, openDoor, stillActive)
+			thisElevator = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, reachFloorEvent, openDoor, stillActive)
 
 		case <-doorTimeout:
-			elevator = OnDoorTimeout(elevator, setLights, changeMotorDirection, reachFloorEvent, closeDoor, keepDoorOpen, stillActive)
+			thisElevator = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, reachFloorEvent, closeDoor, keepDoorOpen, stillActive)
 		case <-inactivityTimeout:
 
 			/* Debugging
@@ -46,9 +46,9 @@ func StateMachineLoop(startFloor int,
 			stillActive <- true
 
 		case <-obstructionTimeout:
-			elevator = OnObstructionTimeout(elevator, keepObstructed)
+			thisElevator = OnObstructionTimeout(thisElevator, keepObstructed)
 		case <-obstructionEvent:
-			elevator = OnObstructionEvent(elevator, keepDoorOpen, keepObstructed)
+			thisElevator = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
 		}
 
 	}
