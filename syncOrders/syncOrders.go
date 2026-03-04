@@ -30,12 +30,6 @@ The struct of the OrderToSyncMap is:
 }
 */
 
-type orderType int 
-const (
-	HALL = 0
-	CAB = 1
-)
-
 type currentOrderState int
 const (
 	COS_UNKNOWN = -1
