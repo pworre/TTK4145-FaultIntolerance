@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e  # Exit immediately if a command fails
 
+echo "Updating submodules..."
+git submodule sync --recursive
+git submodule update --init --recursive || \
+git submodule update --init --recursive --remote
+
 # Paths
 PROJECT_ROOT="$(pwd)"
 HRA_PATH="$PROJECT_ROOT/elevatorControl/hallRequestAssigner"
