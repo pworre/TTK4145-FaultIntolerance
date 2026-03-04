@@ -83,8 +83,8 @@ func main() {
 	// TODO: change the inut parameters from buttonEvent to something else, currently the elevators accept all button presses
 	// Finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor,
-		buttonEvent, reachFloorEvent,
-		doorTimeout, setFloorIndicator,
+		buttonEvent, reachFloorEvent, obstructionEvent,
+		doorTimeout, setFloorIndicator, inactivityTimeout, obstructionTimeout, keepObstructed,
 		setLights, changeMotorDirection,
 		openDoor, closeDoor, keepDoorOpen, stillActive, peersRx_state)
 

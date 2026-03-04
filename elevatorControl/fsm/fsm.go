@@ -37,9 +37,9 @@ func StateMachineLoop(startFloor int,
 			}
 
 		case <-obstructionTimeout:
-			elevator = OnObstructionTimeout(elevator, setLights, changeMotorDirection, closeDoor, keepDoorOpen, stillAlive, peersRx_state, resetObstructionTimer)
+			elevator = OnObstructionTimeout(elevator, peersRx_state, keepObstructed)
 		case <-obstructionEvent:
-			elevator = OnObstructionEvent(elevator, setLights, changeMotorDirection, closeDoor, keepDoorOpen, stillAlive, peersRx_state, resetObstructionTimer)
+			elevator = OnObstructionEvent(elevator, keepDoorOpen, keepObstructed)
 		}
 
 	}
@@ -154,9 +154,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 }
 
 func OnObstructionTimeout(currentState elevator.Elevator,
-	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	changeMotorDirection chan elevator.MotorDirection,
-	closeDoor chan bool, keepDoorOpen chan bool, stillAlive chan bool, peersRx_state chan peers.PeerUpdate, keepObstructed chan bool) elevator.Elevator {
+	peersRx_state chan peers.PeerUpdate, keepObstructed chan bool) elevator.Elevator {
 
 	nextState := currentState
 
@@ -175,9 +173,7 @@ func OnObstructionTimeout(currentState elevator.Elevator,
 }
 
 func OnObstructionEvent(currentState elevator.Elevator,
-	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	changeMotorDirection chan elevator.MotorDirection,
-	closeDoor chan bool, keepDoorOpen chan bool, stillAlive chan bool, peersRx_state chan peers.PeerUpdate, keepObstructed chan bool) elevator.Elevator {
+	keepDoorOpen chan bool, keepObstructed chan bool) elevator.Elevator {
 	nextState := currentState
 
 	switch nextState.Behaviour {
@@ -187,5 +183,5 @@ func OnObstructionEvent(currentState elevator.Elevator,
 		keepObstructed <- true
 
 	}
-
+	return nextState
 }
