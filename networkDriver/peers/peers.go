@@ -42,7 +42,6 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 		}
 		if enable {
 			conn.WriteTo([]byte(id), addr)
-			log.Printf("SO I JUST SLID INTO EVERYONES DMS")
 		}
 	}
 }
