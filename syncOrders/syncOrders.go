@@ -124,7 +124,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 	for {
 		select {
 		case newRequest := <-requestEvent:
-			log.Printf("OMG I GOT A BUTTONPRESS!!!")
+			log.Printf("OMG I GOT A REQUEST!!!")
 			orderToAdd := Order{
 				PeerID:            myID,
 				OrderType:         newRequest.Button,
@@ -183,13 +183,14 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			}
 
 		case orderToHandle := <-orderSyncBuffer:
+			log.Printf("HM, THERE WAS AN ORDER IN THE SYNC BUFFER?")
 			orderToSyncMap[myID] = orderToHandle
-			txMsgUpdate <- true
+			txMsgUpdate <- true // Non-blocking
 
 		case newElevatorState := <-elevatorState:
 			// TODO: TAKE ELEVATOR STATE AS CHANNEL INPUT
 			allElevatorStates[myID] = newElevatorState
-			txMsgUpdate <- true
+			txMsgUpdate <- true // Non-blocking
 
 		case msgReceivedBytes := <-networkRx:
 			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
@@ -222,7 +223,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 						orderSyncBuffer <- orderToSync
 					case COS_UNCONFIRMED_DELETION:
 						orderToSync.CurrentOrderState = COS_READY_TO_DELETE
-						orderDeleteBuffer <- orderToSync
+						orderSyncBuffer <- orderToSync
 					case COS_CONFIRMED_REQUEST:
 						orderConfirmedBuffer <- orderToSync
 					case COS_READY_TO_DELETE:
@@ -239,7 +240,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			if isCabOrder(orderConfirmed) {
 				ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderConfirmed)
 			}
-			txMsgUpdate <- true
+			txMsgUpdate <- true // Non-blocking
 
 			// Reached Barrier state, we can now safely do side effects
 			buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
@@ -276,7 +277,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 				}
 			}
 
-			txMsgUpdate <- true
+			txMsgUpdate <- true // Non-blocking
 
 		case txChanges := <-txMsgUpdate:
 			log.Printf("OKAY SO I THINK THERE IS CHANGES")

@@ -58,7 +58,7 @@ func main() {
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
 	reachFloorEvent := make(chan elevator.FloorDirectionPair)
 	requestEvent := make(chan elevator.ButtonEvent)
-	orderSyncBuffer := make(chan syncOrders.Order)
+	orderSyncBuffer := make(chan syncOrders.Order, 1024)
 	elevatorState := make(chan elevator.Elevator)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
