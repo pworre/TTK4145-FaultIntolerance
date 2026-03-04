@@ -55,7 +55,7 @@ func main() {
 	obstructionTimeout := make(chan bool)
 
 	// Channels for orders
-	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
+	assignEvent := make(chan map[string][elevator.N_FLOORS][elevator.N_BUTTONS]bool)
 	reachFloorEvent := make(chan elevator.FloorDirectionPair)
 	requestEvent := make(chan elevator.ButtonEvent)
 	orderBuffer := make(chan syncOrders.Order)
@@ -75,7 +75,7 @@ func main() {
 	//go elevator.PollObstruction(obstructionEvent)
 	//go elevator.PollFloorSensor(floorEvent)
 	// TODO: Add "fsm" for goroutine with orderAssignment
-	go syncOrders.OrderSync(orderBuffer, elevatorStateCh, buttonEvent, reachFloorEvent, cfg, peersRx_status)
+	go syncOrders.OrderSync(orderBuffer, elevatorStateCh, assignEvent, requestEvent, reachFloorEvent, cfg, peersRx_status)
 	// - - - - - - Deploying - - - - - - -
 
 	go timer.Timers(resetObstructionTimer, resetInactivityTimer, resetDoorTimer, doorTimeout, inactivityTimeout, obstructionTimeout)
