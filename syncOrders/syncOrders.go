@@ -10,6 +10,9 @@ import (
 	"networkDriver/peers"
 )
 
+// TODO: Must probably implement proper state machine! Currently only stateCounter is used, not a cyclic state counter
+
+// ! NB: Massive changes inbound, this comment overview may no longer be valid
 /*
 This file contains all struct and functions for order syncronization between peers on the network.
 Each node is sending a OrderToSyncMap which is a map of what each node's version of the different
@@ -183,12 +186,12 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 			}
 
 		case orderToHandle := <-orderSyncBuffer:
+			// TODO: Send order into statemachine
 			log.Printf("HM, THERE WAS AN ORDER IN THE SYNC BUFFER?")
 			orderToSyncMap[myID] = orderToHandle
 			txMsgUpdate <- true // Non-blocking
 
 		case newElevatorState := <-elevatorState:
-			// TODO: TAKE ELEVATOR STATE AS CHANNEL INPUT
 			allElevatorStates[myID] = newElevatorState
 			txMsgUpdate <- true // Non-blocking
 
@@ -202,6 +205,7 @@ func OrderSync(orderSyncBuffer chan Order, elevatorState <-chan elevator.Elevato
 				ordersConfirmed_CAB[msgReceived.PeerID] = msgReceived.OrdersConfirmed_CAB
 				ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
 				msgTransmitting.StateCounter = msgReceived.StateCounter - 1
+
 			}
 
 			// Checks if MY OrderToSync is synced to all peers
