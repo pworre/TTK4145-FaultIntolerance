@@ -48,6 +48,7 @@ type Elevator struct {
 	Behaviour ElevatorBehaviour
 }
 
+// TODO: Obsolete, remove and probably reuse name for the newstartelevator function
 func NewElevator(floor int, dir MotorDirection, behaviour ElevatorBehaviour) Elevator {
 	return Elevator{
 		Floor:     floor,
@@ -62,6 +63,7 @@ func NewStartElevator(startFloor int) Elevator {
 		Floor:     startFloor,
 		Direction: D_Stop,
 		Behaviour: EB_Idle,
+		// Assume all new elevators have no requests
 	}
 }
 

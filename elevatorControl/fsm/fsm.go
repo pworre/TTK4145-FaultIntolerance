@@ -17,9 +17,10 @@ func StateMachineLoop(startFloor int,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	changeMotorDirection chan elevator.MotorDirection,
-	reachFloorEvent chan elevator.FloorDirectionPair,
-	requestEvent chan elevator.ButtonEvent,
-	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) { // peersRx_status chan peers.PeerUpdate) {
+	servicedRequest chan elevator.ButtonEvent,
+	newRequest chan elevator.ButtonEvent,
+	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool,
+	stillActive chan bool, localStateChange chan elevator.Elevator) { // peersRx_status chan peers.PeerUpdate) {
 
 	thisElevator := elevator.NewStartElevator(startFloor)
 
@@ -27,17 +28,17 @@ func StateMachineLoop(startFloor int,
 		select {
 		case buttonPressed := <-buttonEvent:
 			log.Printf("BRO SOMEONE JUST PRESSED A BUTTON")
-			thisElevator = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, requestEvent)
+			thisElevator = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, newRequest)
 
 		case newAssignment := <-assignEvent:
 			log.Printf("OMG I JUST GOT AN ORDER!")
-			thisElevator = OnNewAssignment(thisElevator, newAssignment, setLights, changeMotorDirection, reachFloorEvent, openDoor, keepDoorOpen, stillActive)
+			thisElevator = OnNewAssignment(thisElevator, newAssignment, setLights, changeMotorDirection, servicedRequest, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:
-			thisElevator = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, reachFloorEvent, openDoor, stillActive)
+			thisElevator = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, servicedRequest, openDoor, stillActive)
 
 		case <-doorTimeout:
-			thisElevator = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, reachFloorEvent, closeDoor, keepDoorOpen, stillActive)
+			thisElevator = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, servicedRequest, closeDoor, keepDoorOpen, stillActive)
 		case <-inactivityTimeout:
 
 			/* Debugging
@@ -48,20 +49,22 @@ func StateMachineLoop(startFloor int,
 			}
 			*/
 			stillActive <- true
-
+			// ObstructionTimeout probably unneccesary, only need event, we must wait for obstruction to clear anyway
 		case <-obstructionTimeout:
 			thisElevator = OnObstructionTimeout(thisElevator, keepObstructed)
 		case <-obstructionEvent:
 			thisElevator = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
 		}
 
+		// Notify elevators on network that we have done something
+		localStateChange <- thisElevator
 	}
 }
 
 // Event handling functions
 
 func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
-	keepDoorOpen chan bool, stillActive chan bool, requestEvent chan elevator.ButtonEvent) elevator.Elevator {
+	keepDoorOpen chan bool, stillActive chan bool, newRequest chan elevator.ButtonEvent) elevator.Elevator {
 
 	// Copy of current state
 	nextState := currentState
@@ -73,11 +76,11 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 			keepDoorOpen <- true
 			stillActive <- true
 		} else {
-			requestEvent <- elevator.ButtonEvent{btnFloor, btnType}
+			newRequest <- elevator.ButtonEvent{btnFloor, btnType}
 		}
 
 	default:
-		requestEvent <- elevator.ButtonEvent{btnFloor, btnType}
+		newRequest <- elevator.ButtonEvent{btnFloor, btnType}
 	}
 
 	// Return transformed state
@@ -87,7 +90,7 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	changeMotorDirection chan elevator.MotorDirection,
-	reachFloorEvent chan elevator.FloorDirectionPair,
+	servicedRequest chan elevator.ButtonEvent,
 	openDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
 	// Copy of current state
@@ -102,7 +105,14 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			openDoor <- true
-			reachFloorEvent <- elevator.FloorDirectionPair{nextState.Floor, nextState.Direction}
+
+			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			if shouldClearUpButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			}
+			if shouldClearDownButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 
@@ -124,7 +134,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 	setFloorIndicator chan int,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	changeMotorDirection chan elevator.MotorDirection,
-	reachFloorEvent chan elevator.FloorDirectionPair,
+	servicedRequest chan elevator.ButtonEvent,
 	openDoor chan bool, stillActive chan bool) elevator.Elevator {
 
 	// Copy of current state
@@ -139,7 +149,13 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 		if requests.ShouldStop(nextState) {
 			changeMotorDirection <- elevator.D_Stop
 			openDoor <- true
-			reachFloorEvent <- elevator.FloorDirectionPair{nextState.Floor, nextState.Direction}
+			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			if shouldClearUpButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			}
+			if shouldClearDownButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
@@ -155,7 +171,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 func OnDoorTimeout(currentState elevator.Elevator,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	changeMotorDirection chan elevator.MotorDirection,
-	reachFloorEvent chan elevator.FloorDirectionPair,
+	servicedRequest chan elevator.ButtonEvent,
 	closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
 	// Copy of current state
@@ -169,7 +185,13 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-			reachFloorEvent <- elevator.FloorDirectionPair{nextState.Floor, nextState.Direction}
+			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			if shouldClearUpButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			} 
+			if shouldClearDownButton {
+				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!

@@ -102,7 +102,7 @@ func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.
 			(btnType == elevator.B_Cab))
 }
 
-func ButtonToClearAtCurrentFloor(e elevator.Elevator) (bool, bool) {
+func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool) {
 
 	shouldClearUpButton := false
 	shouldClearDownButton := false
