@@ -44,7 +44,7 @@ for-select overview:
 	- peerUpdate					-	Receives info about all peers on network
 */
 
-type currentOrderState int
+type CurrentOrderState int
 
 const (
 	COS_UNKNOWN              = -1
@@ -59,7 +59,7 @@ type Order struct {
 	PeerID            string
 	OrderFloor        int
 	OrderType         elevator.Button
-	CurrentOrderState currentOrderState
+	CurrentOrderState CurrentOrderState
 }
 
 type OrderNetworkMsg struct {
