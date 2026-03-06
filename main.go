@@ -9,6 +9,7 @@ import (
 	"log"
 	"networkDriver/peers"
 	"syncOrders"
+	"syncOrders/order"
 )
 
 const PEERS_PORT int = 34933
@@ -58,9 +59,9 @@ func main() {
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
 	reachFloorEvent := make(chan elevator.FloorDirectionPair)
 	requestEvent := make(chan elevator.ButtonEvent)
-	orderSyncBuffer := make(chan syncOrders.Order, 1024)
+	orderSyncBuffer := make(chan order.Order, 1024)
 	elevatorState := make(chan elevator.Elevator)
-	//ordersConfirmed := make(chan []syncOrders.Order)
+	//ordersConfirmed := make(chan []order.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
 
 	// Channels for P2P

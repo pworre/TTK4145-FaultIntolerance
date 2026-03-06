@@ -1,20 +1,20 @@
 package syncOrderFSM
 
 import (
-	"syncOrders"
+	"syncOrders/order"
 	"log"
 )
 
 // Finite state machine loop
 
-func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan syncOrders.OrderMap, 
-	allAgreeToAddOrder chan syncOrders.Order, allAgreeToDeleteOrder chan syncOrders.Order, 
-	confirmedRequest chan syncOrders.Order, confirmedDeletion chan syncOrders.Order, 
-	txMsgUpdate chan map[string]syncOrders.Order, activePeersList []string) {
+func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan order.OrderMap, 
+	allAgreeToAddOrder chan order.Order, allAgreeToDeleteOrder chan order.Order, 
+	confirmedRequest chan order.Order, confirmedDeletion chan order.Order, 
+	txMsgUpdate chan order.OrderMap, activePeersListCh chan []string) {
 	
-	localOrderToSyncMap := make(map[string]syncOrders.Order)
+	localOrderToSyncMap := make(order.OrderMap)
 
-	//localOrderToSync := syncOrders.Order{
+	//localOrderToSync := order.Order{
 	//PeerID:            myID,
 	//OrderType:         elevator.B_Cab,
 	//OrderFloor:        -1,
@@ -24,6 +24,8 @@ func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan s
 	// TODO: RESET WHEN THERE EXISTS NEW LOCAL ORDER TO SYNC
 	isPeerSyncedMap := make(map[string]bool)
 
+	activePeersList := make([]string, 0)
+
 // TODO: Complete implementation of the barrier state counting, spawn correct number of threads in main
 
 
@@ -31,23 +33,23 @@ func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan s
 		select {
 		case <-networkDisconnect:
 			for ID, _ := range localOrderToSyncMap {
-				localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_UNKNOWN, ID)
+				localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_UNKNOWN, ID)
 			}
 
 		case incomingOrderToSyncMap_shallowCopy := <-receivedOrderToSyncMap: // TODO: CHANGE TO receivedOrderToSyncMap ???
 			incomingOrderToSyncMap := copyMap(incomingOrderToSyncMap_shallowCopy)// Deep Copy
 			for incomingID, incomingOrderToSync := range incomingOrderToSyncMap {
 				switch incomingOrderToSync.CurrentOrderState {
-				case syncOrders.COS_NONE:
+				case order.COS_NONE:
 
 					// ! DID NOT UNDERSTAND !
 					/*
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
-					case syncOrders.COS_CONFIRMED_REQUEST:
+					case order.COS_CONFIRMED_REQUEST:
 						iAgree := <- myID
 						// Add to agreelist
 
-					case syncOrders.COS_READY_TO_DELETE:
+					case order.COS_READY_TO_DELETE:
 						iAgree := <- myID
 						// Add to agreelist
 
@@ -56,49 +58,49 @@ func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan s
 					}*/
 
 				
-				case syncOrders.COS_UNCONFIRMED_REQUEST:
+				case order.COS_UNCONFIRMED_REQUEST:
 					
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
-					case syncOrders.COS_NONE:
-						localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_UNCONFIRMED_REQUEST, incomingID)
+					case order.COS_NONE:
+						localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_UNCONFIRMED_REQUEST, incomingID)
 
 					default:
 
 					}
 				
-				case syncOrders.COS_UNCONFIRMED_DELETION:
+				case order.COS_UNCONFIRMED_DELETION:
 
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
-					case syncOrders.COS_NONE:
-						localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_UNCONFIRMED_DELETION, incomingID)
+					case order.COS_NONE:
+						localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_UNCONFIRMED_DELETION, incomingID)
 
 					default:
 
 					}
 				
-				case syncOrders.COS_CONFIRMED_REQUEST:
+				case order.COS_CONFIRMED_REQUEST:
 					if isAllPeersSynced(isPeerSyncedMap, activePeersList) {
 						log.Println("All peers synced with my order to add")
 						allAgreeToAddOrder <- incomingOrderToSync
 					}
 
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
-					case syncOrders.COS_UNCONFIRMED_REQUEST:
-						localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_CONFIRMED_REQUEST, incomingID)
+					case order.COS_UNCONFIRMED_REQUEST:
+						localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_CONFIRMED_REQUEST, incomingID)
 
 					default:
 
 					}
 				
-				case syncOrders.COS_READY_TO_DELETE:
+				case order.COS_READY_TO_DELETE:
 					if isAllPeersSynced(isPeerSyncedMap, activePeersList) {
 						log.Println("All peers synced with my order to remove")
 						allAgreeToDeleteOrder <- incomingOrderToSync
 					}
 					
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
-					case syncOrders.COS_UNCONFIRMED_DELETION:
-						localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_READY_TO_DELETE, incomingID)
+					case order.COS_UNCONFIRMED_DELETION:
+						localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_READY_TO_DELETE, incomingID)
 
 					default:
 
@@ -112,18 +114,22 @@ func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan s
 			// ! Double-check that the order has state completed
 			// ? WHERE TO RECEIVE INCOMING ID AND KNOW WHICH ORDER TO ADD
 			confirmedRequest <- orderToAdd
-			localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_NONE, orderToAdd.PeerID)
+			localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_NONE, orderToAdd.PeerID)
 		
 		case orderToDelete := <-allAgreeToDeleteOrder:
 			// Remove completed order, turn off lights
 			// ! Double-check that the order has state completed
 			confirmedDeletion <- orderToDelete
-			localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_NONE, orderToDelete.PeerID)
+			localOrderToSyncMap = setOrderState(localOrderToSyncMap, order.COS_NONE, orderToDelete.PeerID)
+
+		case newActivePeersList := <- activePeersListCh:
+			activePeersList = newActivePeersList
 		}
 		// ? INTENTIONS HERE ? WHy send a deep-copy map when there is also confirmedlist for cab and hall orders
 		mapToTransmit := copyMap(localOrderToSyncMap)
 		txMsgUpdate <- mapToTransmit // Deep copy of map to be sent
-	}
+		}
+		
 }
 
 func isAllPeersSynced(isPeerSyncedMap map[string]bool, activePeersList []string) bool {
@@ -176,15 +182,15 @@ func confirmedDeletionOrderPeerCounter(incomingConfirmedRequest chan string, inc
 }
 */
 
-func copyMap(oldMap map[string]syncOrders.Order) map[string]syncOrders.Order {
-    newMap := make(map[string]syncOrders.Order, len(oldMap))
+func copyMap(oldMap order.OrderMap) order.OrderMap {
+    newMap := make(order.OrderMap, len(oldMap))
     for key, value := range oldMap {
         newMap[key] = value
     }
     return newMap
 }
 
-func setOrderState(orderMapToModify map[string]syncOrders.Order, newState syncOrders.CurrentOrderState, id string) map[string]syncOrders.Order {
+func setOrderState(orderMapToModify order.OrderMap, newState order.CurrentOrderState, id string) order.OrderMap {
 	tempOrder := orderMapToModify[id]
 	tempOrder.CurrentOrderState = newState
 	orderMapToModify[id] = tempOrder
