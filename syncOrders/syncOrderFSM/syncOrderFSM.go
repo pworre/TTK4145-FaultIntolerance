@@ -8,7 +8,7 @@ import (
 // Finite state machine loop
 
 func StateMachineLoop(chans chan bool) {
-	localOrderToSyncMap := map[string]Order
+	localOrderToSyncMap := map[string]Order{}
 
 	//localOrderToSync := syncOrders.Order{
 	//PeerID:            myID,
@@ -18,6 +18,7 @@ func StateMachineLoop(chans chan bool) {
 	//}
 
 // TODO: Complete implementation of the barrier state counting, spawn correct number of threads in main
+// TODO: For a peerUpdate, we need to update the localOrderToSyncMap
 
 
 	for {
@@ -116,12 +117,12 @@ func doAllElevatorsAgree(allElevatorsThatAgree []string) bool {
 }
 
 func confirmedRequestOrderPeerCounter(incomingConfirmedRequest chan string, incomingConfirmedDelete chan string, allAgreeToConfirm chan bool) {
-	peersThatHaveConfirmedRequest := []string length peerlist
+	peersThatHaveConfirmedRequest := []string //length peerlist
 
 	for {
 		select {
 		case <-peerUpdate:
-			peersThatHaveConfirmedRequest = []string length peerlist
+			peersThatHaveConfirmedRequest = []string //length peerlist
 
 		case peerID := <-incomingConfirmedRequest:
 			peersThatHaveConfirmedRequest[peerID] = true
@@ -129,18 +130,18 @@ func confirmedRequestOrderPeerCounter(incomingConfirmedRequest chan string, inco
 		}
 		if allElevatorAgree(peersThatHaveConfirmedRequest) {
 			allAgreeToAddOrder <- true
-			peersThatHaveConfirmedRequest := []string length peerlist
+			peersThatHaveConfirmedRequest := []string //length peerlist
 		}
 	}
 }
 
 func confirmedDeletionOrderPeerCounter(incomingConfirmedRequest chan string, incomingConfirmedDelete chan string, allAgreeToDelete chan bool) {
-	peersThatHaveConfirmedDeletion := []string length peerlist
+	peersThatHaveConfirmedDeletion := []string //length peerlist
 
 	for {
 		select {
 		case <-peerUpdate:
-			peersThatHaveConfirmedDeletion = []string length peerlist
+			peersThatHaveConfirmedDeletion = []string //length peerlist
 		
 		case peerID := <-incomingConfirmedDelete:
 			peersThatHaveConfirmedDeletion[peerID] = true
@@ -148,7 +149,7 @@ func confirmedDeletionOrderPeerCounter(incomingConfirmedRequest chan string, inc
 		}
 		if allElevatorAgree(peersThatHaveConfirmedDeletion) {
 			allAgreeToDeleteOrder <- true
-			peersThatHaveConfirmedDeletion := []string length peerlist
+			peersThatHaveConfirmedDeletion := []string //length peerlist
 		}
 	}
 }
