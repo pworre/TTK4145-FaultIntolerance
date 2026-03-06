@@ -8,7 +8,7 @@ import (
 	"log"
 	"networkDriver/bcast"
 	"networkDriver/peers"
-	//"syncOrders/syncOrderFSM"
+	"syncOrders/syncOrderFSM"
 )
 
 // TODO: Fix all channel needs, go through last logic (like ex. hra), go over overall and see if things should be moved, added or restructured. Tie together with orderSyncFSM and start testing
@@ -55,6 +55,8 @@ const (
 	COS_READY_TO_DELETE      = 4
 )
 
+type OrderMap map[string]Order
+
 type Order struct {
 	PeerID            string
 	OrderFloor        int
@@ -65,21 +67,20 @@ type Order struct {
 type OrderNetworkMsg struct {
 	PeerID               string                       `json:"peerID"`
 	AllElevatorStates    map[string]elevator.Elevator `json:"elevatorState"`
-	OrderToSyncMap       map[string]Order             `json:"orderToSyncMap"`
+	OrderToSyncMap       OrderMap             		  `json:"orderToSyncMap"`
 	OrdersConfirmed_HALL []Order                      `json:"ordersConfirmed_HALL"`
 	OrdersConfirmed_CAB  map[string][]Order           `json:"ordersConfirmed_CAB"`
 }
 
 const G_BCAST_PORT = 25532
 
-func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
+func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 
+	requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, 
+	peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localStateChange <-chan elevator.Elevator) {
+
 	myID := cfg.ID
 
-	networkRx := make(chan []byte, 1024)
-	networkTx := make(chan []byte, 1024)
 
-	go bcast.Transmitter(G_BCAST_PORT, networkTx)
-	go bcast.Receiver(G_BCAST_PORT, networkRx)
 
 	//orderToSync := Order{
 	//	PeerID:            myID,
@@ -101,19 +102,39 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 	allElevatorStates := make(map[string]elevator.Elevator)
 	allElevatorStates[myID] = elevator.NewStartElevator(startFloor)
 
+	newRequest := make(chan Order, 1024)
+	servicedRequest := make(chan Order, 1024)
+	confirmedRequest := make(chan Order, 1024)
+	confirmedDeletion := make(chan Order, 1024)
+	txMsgUpdate := make(chan map[string]Order, 1024)
+	receivedOrderToSyncMap := make(chan OrderMap, 1024)
+	activePeersListCh := make(chan []string, 1024)
+	// ! BETTER NAMING !
+	allAgreeToAddOrder := make(chan Order, 1024)
+	allAgreeToDeleteOrder := make(chan Order, 1024)
+
+	networkRx := make(chan []byte, 1024)
+	networkTx := make(chan []byte, 1024)
+	networkDisconnect := make(chan bool, 1024)
+
+	go bcast.Transmitter(G_BCAST_PORT, networkTx)
+	go bcast.Receiver(G_BCAST_PORT, networkRx)
+	go syncOrderFSM.StateMachineLoop(networkDisconnect, receivedOrderToSyncMap, allAgreeToAddOrder, allAgreeToDeleteOrder,
+									confirmedRequest, confirmedDeletion, txMsgUpdate, activePeersListCh)
+
 	for {
 		select {
 		case requestToAdd := <-newRequest:
 			log.Printf("OMG I GOT A REQUEST!!!")
-			orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, COS_UNCONFIRMED_REQUEST)
+			orderToAdd := newOrder(myID, requestToAdd.OrderFloor, requestToAdd.OrderType, COS_UNCONFIRMED_REQUEST)
 			orderSyncBuffer <- orderToAdd
 
 		case requestToRemove := <-servicedRequest:
 			log.Printf("OMG I DID AN ORDER!!!")
-			orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, COS_UNCONFIRMED_DELETION)
+			orderToRemove := newOrder(myID, requestToRemove.OrderFloor, requestToRemove.OrderType, COS_UNCONFIRMED_DELETION)
 			orderSyncBuffer <- orderToRemove
 
-		case orderToSyncMap = <-youCanTransmitNow:
+		case orderToSyncMap = <-txMsgUpdate:
 			if orderToSyncMap[myID].CurrentOrderState == COS_NONE {
 				select {
 				case orderToSyncMap[myID] = <-orderSyncBuffer:
@@ -208,7 +229,7 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
 
-			orderToSyncMapMessage <- msgReceived.OrderToSyncMap
+			receivedOrderToSyncMap <- msgReceived.OrderToSyncMap
 			orderToSyncMap = msgReceived.OrderToSyncMap
 			allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
 
@@ -444,7 +465,7 @@ func requestsBelow(floor int, direction elevator.MotorDirection, requests [eleva
 	return false
 }
 
-func newOrder(ID string, floor int, button elevator.Button, orderState currentOrderState) Order {
+func newOrder(ID string, floor int, button elevator.Button, orderState CurrentOrderState) Order {
 	return Order{
 		PeerID:            ID,
 		OrderFloor:        floor,

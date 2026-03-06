@@ -7,10 +7,11 @@ import (
 
 // Finite state machine loop
 
-func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan map[string]syncOrders.Order, 
+func StateMachineLoop(networkDisconnect chan bool, receivedOrderToSyncMap chan syncOrders.OrderMap, 
 	allAgreeToAddOrder chan syncOrders.Order, allAgreeToDeleteOrder chan syncOrders.Order, 
 	confirmedRequest chan syncOrders.Order, confirmedDeletion chan syncOrders.Order, 
 	txMsgUpdate chan map[string]syncOrders.Order, activePeersList []string) {
+	
 	localOrderToSyncMap := make(map[string]syncOrders.Order)
 
 	//localOrderToSync := syncOrders.Order{
@@ -33,12 +34,14 @@ func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan ma
 				localOrderToSyncMap = setOrderState(localOrderToSyncMap, syncOrders.COS_UNKNOWN, ID)
 			}
 
-		case incomingOrderToSyncMap_shallowCopy := <-orderToSyncMapMessage: // TODO: CHANGE TO receivedOrderToSyncMap ???
+		case incomingOrderToSyncMap_shallowCopy := <-receivedOrderToSyncMap: // TODO: CHANGE TO receivedOrderToSyncMap ???
 			incomingOrderToSyncMap := copyMap(incomingOrderToSyncMap_shallowCopy)// Deep Copy
 			for incomingID, incomingOrderToSync := range incomingOrderToSyncMap {
 				switch incomingOrderToSync.CurrentOrderState {
 				case syncOrders.COS_NONE:
 
+					// ! DID NOT UNDERSTAND !
+					/*
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
 					case syncOrders.COS_CONFIRMED_REQUEST:
 						iAgree := <- myID
@@ -50,7 +53,7 @@ func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan ma
 
 					default:
 
-					}
+					}*/
 
 				
 				case syncOrders.COS_UNCONFIRMED_REQUEST:
@@ -74,7 +77,10 @@ func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan ma
 					}
 				
 				case syncOrders.COS_CONFIRMED_REQUEST:
-					incomingConfirmedRequest(incomingOrderToSync.PeerID)
+					if isAllPeersSynced(isPeerSyncedMap, activePeersList) {
+						log.Println("All peers synced with my order to add")
+						allAgreeToAddOrder <- incomingOrderToSync
+					}
 
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
 					case syncOrders.COS_UNCONFIRMED_REQUEST:
@@ -85,7 +91,10 @@ func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan ma
 					}
 				
 				case syncOrders.COS_READY_TO_DELETE:
-					incomingConfirmedDeletion(incomingOrderToSync.PeerID)
+					if isAllPeersSynced(isPeerSyncedMap, activePeersList) {
+						log.Println("All peers synced with my order to remove")
+						allAgreeToDeleteOrder <- incomingOrderToSync
+					}
 					
 					switch localOrderToSyncMap[incomingID].CurrentOrderState {
 					case syncOrders.COS_UNCONFIRMED_DELETION:
@@ -117,7 +126,7 @@ func StateMachineLoop(networkDisconnect chan bool, orderToSyncMapMessage chan ma
 	}
 }
 
-func isPeersSynced(isPeerSyncedMap map[string]bool, activePeersList []string) bool {
+func isAllPeersSynced(isPeerSyncedMap map[string]bool, activePeersList []string) bool {
 	isAllPeersSynced := true
 	for _, ID := range(activePeersList) {
 		isPeerSynced := isPeerSyncedMap[ID]
@@ -127,7 +136,7 @@ func isPeersSynced(isPeerSyncedMap map[string]bool, activePeersList []string) bo
 	}
 	return isAllPeersSynced
 }
-
+/*
 func confirmedRequestOrderPeerCounter(incomingConfirmedRequest chan string, incomingConfirmedDelete chan string, allAgreeToConfirm chan bool, activePeersList []string) {
 	peersThatHaveConfirmedRequest := make([]string, len(activePeersList))
 	
@@ -140,7 +149,7 @@ func confirmedRequestOrderPeerCounter(incomingConfirmedRequest chan string, inco
 			peersThatHaveConfirmedRequest[peerID] = true
 
 		}
-		if allElevatorAgree(peersThatHaveConfirmedRequest) {
+		if isAllPeersSynced(peersThatHaveConfirmedRequest) {
 			allAgreeToAddOrder <- true
 			peersThatHaveConfirmedRequest := make([]string, len(activePeersList))
 		}
@@ -159,12 +168,13 @@ func confirmedDeletionOrderPeerCounter(incomingConfirmedRequest chan string, inc
 			peersThatHaveConfirmedDeletion[peerID] = true
 
 		}
-		if isPeersSynced(peersThatHaveConfirmedDeletion) {
+		if isAllPeersSynced(peersThatHaveConfirmedDeletion) {
 			allAgreeToDeleteOrder <- true
 			peersThatHaveConfirmedDeletion := make([]string, len(activePeersList))	// TODO: IMPROVE VARIABLE NAMING!
 		}
 	}
 }
+*/
 
 func copyMap(oldMap map[string]syncOrders.Order) map[string]syncOrders.Order {
     newMap := make(map[string]syncOrders.Order, len(oldMap))
