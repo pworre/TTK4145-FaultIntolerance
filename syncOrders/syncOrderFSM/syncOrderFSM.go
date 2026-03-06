@@ -8,7 +8,12 @@ import (
 // Finite state machine loop
 
 func StateMachineLoop(chans chan bool) {
+
+	activePeersList = blabla
+	lenActivePeers = len(localOrderToSyncMap)
+
 	localOrderToSyncMap := map[string]Order
+
 
 	//localOrderToSync := syncOrders.Order{
 	//PeerID:            myID,
@@ -18,7 +23,8 @@ func StateMachineLoop(chans chan bool) {
 	//}
 
 // TODO: Complete implementation of the barrier state counting, spawn correct number of threads in main
-
+// TODO: For a peerUpdate, we need to update the localOrderToSyncMap
+// TODO: Might be necessary to periodically send the map, not just with changes... then we also need a currentMessageToSend, most likely
 
 	for {
 		select {
