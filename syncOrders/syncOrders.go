@@ -232,6 +232,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			if msgReceived.OrdersConfirmed_CAB == nil {
 				msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
 			}	
+			if msgReceived.AllElevatorStates == nil {
+				msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
+			}
 
 			orderToSyncMap = msgReceived.OrderToSyncMap
 			newOrderStateReceival <- orderToSyncMap
