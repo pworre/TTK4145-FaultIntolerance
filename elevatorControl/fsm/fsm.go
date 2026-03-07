@@ -97,6 +97,17 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	nextState := currentState
 	nextState.Requests = assignment
 
+	debug := true
+
+	if debug{
+		if nextState.Behaviour == elevator.EB_Idle {
+			log.Print("Elevator is idle")
+		} else {
+			log.Print("Elevator is not idle")
+		}
+	}
+	
+
 	// State transformation and action outputs via message passing
 	switch nextState.Behaviour {
 	case elevator.EB_Idle:
