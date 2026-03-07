@@ -18,7 +18,7 @@ func main() {
 	cfg := config.ParseFlag()
 
 	// - - - - - - Initilizing - - - - - - -
-	log.Printf("Initializing Elevator %d with port %d....", cfg.ID, cfg.Port)
+	log.Printf("Initializing Elevator %s with port %d....", cfg.ID, cfg.Port)
 	startFloor := elevator.HardwareInit(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
 
 	for elevator.GetObstruction() {
@@ -26,7 +26,7 @@ func main() {
 	}
 	elevator.DoorLight(false)
 
-	log.Printf("Elevator %d is now at floor %d! Joining network for service...", cfg.ID, startFloor)
+	log.Printf("Elevator %s is now at floor %d! Joining network for service...", cfg.ID, startFloor)
 
 	// - - - - - - Channels - - - - - - - - -
 

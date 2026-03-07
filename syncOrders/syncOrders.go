@@ -226,6 +226,12 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		case msgReceivedBytes := <-networkRx:
 			//log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
+			if msgReceived.OrderToSyncMap == nil {
+				msgReceived.OrderToSyncMap = make(map[string]order.Order)
+			}
+			if msgReceived.OrdersConfirmed_CAB == nil {
+				msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
+			}	
 
 			orderToSyncMap = msgReceived.OrderToSyncMap
 			newOrderStateReceival <- orderToSyncMap
