@@ -101,8 +101,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
 
-// ! VERY IMPORTANT ! When new peer initializes and joins, it sets itself as none and everyone else as unknown
-// ! Is this handled by default, or must we explicitly enforce this?
+	// ! VERY IMPORTANT ! When new peer initializes and joins, it sets itself as none and everyone else as unknown
+	// ! Is this handled by default, or must we explicitly enforce this?
 
 	orderSyncBuffer := make(chan order.Order, 1024)
 
@@ -138,10 +138,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			} else {
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			}
 
 		case orderToAdd := <-confirmedRequest:
@@ -156,7 +156,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				// ? Think about this internal scope setlights and tx, same below
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 				// Reached Barrier state, we can now safely do side effects
 				buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
@@ -202,7 +202,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			// ? Is this scope trixing really necessary?
 			if wasDeleted {
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 				// Reached Barrier state, we can now safely do side effects
 				buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
@@ -220,11 +220,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		case newElevatorState := <-localStateChange:
 			allElevatorStates[myID] = newElevatorState
 			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+			//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 		case msgReceivedBytes := <-networkRx:
-			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
+			//log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
 
 			orderToSyncMap = msgReceived.OrderToSyncMap
