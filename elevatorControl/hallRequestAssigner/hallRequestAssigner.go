@@ -60,6 +60,7 @@ func AssignOrders(jsonString string) string {
 		panic("OS not supported")
 	}
 
+	fmt.Printf("running %s with input: %s\n", hraExecutable, jsonString)
 	out, err := exec.Command("./elevatorControl/hallRequestAssigner/"+hraExecutable, "-i", (jsonString)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)
