@@ -19,7 +19,7 @@ type acknowledgeBarrier struct {
 
 // Finite state machine loop
 
-func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order.Order, newOrderStateReceival chan map[string]order.Order, confirmedRequest chan order.Order, confirmedDeletion chan order.Order, networkDisconnect chan bool, clearAllConfirmedOrders chan bool, peerUpdateInSyncOrdersFSM chan peers.PeerUpdate, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, waitForReconnection chan peers.PeerUpdate) {
+func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order.Order, newOrderStateReceival chan map[string]order.Order, confirmedRequest chan order.Order, confirmedDeletion chan order.Order, networkDisconnect chan bool, clearAllConfirmedOrders chan bool, peerUpdateInSyncOrdersFSM chan peers.PeerUpdate, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate) {
 
 	activePeersList := make([]string, 0) // Most likely not needed???
 
@@ -70,7 +70,9 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 				updateOrderStateInMap(localOrderToSyncMap, ID, order.SOS_UNKNOWN)
 			}
 			clearAllConfirmedOrders <- true
-			<-waitForReconnection // Blocks and does nothing until we are reconnected or restart
+
+			// !OBS! Debugging!
+			//<-waitForReconnection // Blocks and does nothing until we are reconnected or restart
 
 		case incomingOrderToSyncMapShallowCopy := <-newOrderStateReceival:
 			incomingOrderToSyncMap := MapCopy(incomingOrderToSyncMapShallowCopy)

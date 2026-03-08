@@ -83,7 +83,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate)
 	peerUpdateInRequestBarrierStateCounter := make(chan peers.PeerUpdate)
 	peerUpdateInDeletionBarrierStateCounter := make(chan peers.PeerUpdate)
-	waitForReconnection := make(chan peers.PeerUpdate)
+	//waitForReconnection := make(chan peers.PeerUpdate)
 
 	// TODO: End channels
 
@@ -100,9 +100,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage, transmitEnable)
 
 	// TODO: Check if necessary to make deep copies of the peerUpdates
-	go repeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
+	go repeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
 
-	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
+	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
 
 	// ! VERY IMPORTANT ! When new peer initializes and joins, it should set itself as none and everyone else as unknown
 	// ! Is this handled by default, or must we explicitly enforce this?
