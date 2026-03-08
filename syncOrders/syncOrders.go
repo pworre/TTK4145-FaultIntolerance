@@ -8,10 +8,15 @@ import (
 	"log"
 	"networkDriver/bcast"
 	"networkDriver/peers"
+	"reflect"
+	"syncOrders/order"
+	"syncOrders/syncOrderFSM"
+	"time"
 	//"syncOrders/syncOrderFSM"
 )
 
 // TODO: Fix all channel needs, go through last logic (like ex. hra), go over overall and see if things should be moved, added or restructured. Tie together with orderSyncFSM and start testing
+// TODO: Consider what threads should live where. peers.Transmitter is for instance spawned in main, but networkSending is spawned in here
 
 // ! NB: Massive changes ongoing, this comment overview may no longer be valid
 /*
@@ -44,57 +49,68 @@ for-select overview:
 	- peerUpdate					-	Receives info about all peers on network
 */
 
-type CurrentOrderState int
-
-const (
-	COS_UNKNOWN              = -1
-	COS_NONE                 = 0
-	COS_UNCONFIRMED_REQUEST  = 1
-	COS_CONFIRMED_REQUEST    = 2
-	COS_UNCONFIRMED_DELETION = 3
-	COS_READY_TO_DELETE      = 4
-)
-
-type Order struct {
-	PeerID            string
-	OrderFloor        int
-	OrderType         elevator.Button
-	CurrentOrderState CurrentOrderState
-}
-
 type OrderNetworkMsg struct {
 	PeerID               string                       `json:"peerID"`
 	AllElevatorStates    map[string]elevator.Elevator `json:"elevatorState"`
-	OrderToSyncMap       map[string]Order             `json:"orderToSyncMap"`
-	OrdersConfirmed_HALL []Order                      `json:"ordersConfirmed_HALL"`
-	OrdersConfirmed_CAB  map[string][]Order           `json:"ordersConfirmed_CAB"`
+	OrderToSyncMap       map[string]order.Order       `json:"orderToSyncMap"`
+	OrdersConfirmed_HALL []order.Order                `json:"ordersConfirmed_HALL"`
+	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
+
+const TRANSMIT_INTERVAL = 15 * time.Millisecond
 
 const G_BCAST_PORT = 25532
 
-func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, requestEvent <-chan elevator.ButtonEvent, reachFloorEvent <-chan elevator.FloorDirectionPair, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
+func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, newRequest <-chan elevator.ButtonEvent, servicedRequest <-chan elevator.ButtonEvent, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	myID := cfg.ID
+
+	// TODO: Random channels, sort later
+
+	networkDisconnect := make(chan bool)
+	clearAllConfirmedOrders := make(chan bool)
+
+	confirmedRequest := make(chan order.Order)
+	confirmedDeletion := make(chan order.Order)
+
+	newOrderStateTransition := make(chan map[string]order.Order)
+
+	newOrderStateReceival := make(chan map[string]order.Order)
+
+	peerUpdateInSyncOrders := make(chan peers.PeerUpdate)
+	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate)
+	peerUpdateInRequestBarrierStateCounter := make(chan peers.PeerUpdate)
+	peerUpdateInDeletionBarrierStateCounter := make(chan peers.PeerUpdate)
+	waitForReconnection := make(chan peers.PeerUpdate)
+
+	// TODO: End channels
 
 	networkRx := make(chan []byte, 1024)
 	networkTx := make(chan []byte, 1024)
 
+	// Not used yet, but could possibly be used for networkDisconnect instead of current solution
+	transmitEnable := make(chan bool)
+
+	updateTransmitMessage := make(chan OrderNetworkMsg)
+
 	go bcast.Transmitter(G_BCAST_PORT, networkTx)
 	go bcast.Receiver(G_BCAST_PORT, networkRx)
+	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage, transmitEnable)
 
-	//orderToSync := Order{
-	//	PeerID:            myID,
-	//	OrderFloor:        -1,
-	//	OrderType:         elevator.B_Cab,
-	//	CurrentOrderState: COS_UNKNOWN,
-	//}
+	// TODO: Check if necessary to make deep copies of the peerUpdates
+	go repeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
 
-	orderSyncBuffer := make(chan Order, 1024)
+	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
+
+	// ! VERY IMPORTANT ! When new peer initializes and joins, it sets itself as none and everyone else as unknown
+	// ! Is this handled by default, or must we explicitly enforce this?
+
+	orderSyncBuffer := make(chan order.Order, 1024)
 
 	// MAP for syncronization use
-	orderToSyncMap := make(map[string]Order)
+	orderToSyncMap := make(map[string]order.Order)
 
-	ordersConfirmed_HALL := make([]Order, 0)
-	ordersConfirmed_CAB := make(map[string][]Order)
+	ordersConfirmed_HALL := make([]order.Order, 0)
+	ordersConfirmed_CAB := make(map[string][]order.Order)
 
 	activePeersList := make([]string, 0)
 
@@ -105,26 +121,26 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 		select {
 		case requestToAdd := <-newRequest:
 			log.Printf("OMG I GOT A REQUEST!!!")
-			orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, COS_UNCONFIRMED_REQUEST)
+			orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, order.SOS_UNCONFIRMED_REQUEST)
 			orderSyncBuffer <- orderToAdd
 
 		case requestToRemove := <-servicedRequest:
 			log.Printf("OMG I DID AN ORDER!!!")
-			orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, COS_UNCONFIRMED_DELETION)
+			orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, order.SOS_UNCONFIRMED_DELETION)
 			orderSyncBuffer <- orderToRemove
 
-		case orderToSyncMap = <-youCanTransmitNow:
-			if orderToSyncMap[myID].CurrentOrderState == COS_NONE {
+		case orderToSyncMap = <-newOrderStateTransition:
+			if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 				select {
 				case orderToSyncMap[myID] = <-orderSyncBuffer:
 
 				default:
 				}
 
-				networkTx <- Encode(newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB))
+				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			} else {
-				networkTx <- Encode(newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB))
+				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			}
 
@@ -139,7 +155,7 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 				}
 
 				// ? Think about this internal scope setlights and tx, same below
-				networkTx <- Encode(newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB))
+				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 				// Reached Barrier state, we can now safely do side effects
@@ -167,7 +183,7 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 				// For hallOrders we assume everyone gets on when the elevator comes,
 				// so we remove all orders that have the same floor and buttontype,
 				// regardless of which elevator placed the request
-				newHallList := []Order{}
+				newHallList := []order.Order{}
 
 				for _, order := range ordersConfirmed_HALL {
 					if !sameFloorAndDirection(order, orderToDelete) {
@@ -185,7 +201,7 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 
 			// ? Is this scope trixing really necessary?
 			if wasDeleted {
-				networkTx <- Encode(newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB))
+				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 				// Reached Barrier state, we can now safely do side effects
@@ -196,11 +212,14 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 			/// !TO CHECK OUT! Where does this logic belong?
 
 		// HMMMMMMM
+		case <-clearAllConfirmedOrders:
+			ordersConfirmed_HALL = make([]order.Order, 0)
+			ordersConfirmed_CAB = make(map[string][]order.Order)
 
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 		case newElevatorState := <-localStateChange:
 			allElevatorStates[myID] = newElevatorState
-			networkTx <- Encode(newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB))
+			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
@@ -208,8 +227,9 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
 
-			orderToSyncMapMessage <- msgReceived.OrderToSyncMap
 			orderToSyncMap = msgReceived.OrderToSyncMap
+			newOrderStateReceival <- orderToSyncMap
+
 			allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
 
 			// If an elevator just joins the network, it accepts the first received lists of confirmed orders
@@ -221,9 +241,14 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 			}
 
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-		case newPeerUpdate := <-peerUpdate:
+		case newPeerUpdate := <-peerUpdateInSyncOrders:
+
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
+			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
+			if len(activePeersList) == 0 {
+				networkDisconnect <- true
+			}
 			for _, str := range activePeersList {
 				log.Printf("Peer number: %s", str)
 			}
@@ -235,11 +260,40 @@ func OrderSync(startFloor int, elevatorState <-chan elevator.Elevator, assignEve
 	}
 }
 
+func repeater(ch_in interface{}, chs_out ...interface{}) {
+	for {
+		v, _ := reflect.ValueOf(ch_in).Recv()
+
+		for _, c := range chs_out {
+			reflect.ValueOf(c).Send(v)
+		}
+	}
+}
+
+func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitMessage chan OrderNetworkMsg, transmitEnable chan bool) {
+	orderTransmitMessage := OrderNetworkMsg{PeerID: myID}
+	enable := true
+
+	ticker := time.NewTicker(TRANSMIT_INTERVAL)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case enable = <-transmitEnable:
+		case orderTransmitMessage = <-updateTransmitMessage:
+		case <-ticker.C:
+		}
+		if enable {
+			networkTx <- Encode(orderTransmitMessage)
+		}
+	}
+}
+
 // Pops a order at a given index  and returns a new list of orders, the popped order,
 // and a bool telling if a order was popped or not
-func PopOrder(orderList []Order, index int) ([]Order, Order, bool) {
+func PopOrder(orderList []order.Order, index int) ([]order.Order, order.Order, bool) {
 	if len(orderList) == 0 {
-		return orderList, Order{}, false
+		return orderList, order.Order{}, false
 	}
 	poppedOrder := orderList[index]
 	orderList = append(orderList[:index], orderList[index+1:]...)
@@ -249,14 +303,14 @@ func PopOrder(orderList []Order, index int) ([]Order, Order, bool) {
 
 // Pops a single order from a list (if there is one) and returns a new list of orders, the popped order,
 // and a bool telling if an order was popped or not
-func popOrder(orderList []Order, order Order) ([]Order, Order, bool) {
+func popOrder(orderList []order.Order, ord order.Order) ([]order.Order, order.Order, bool) {
 	if len(orderList) == 0 {
-		return orderList, Order{}, false
+		return orderList, order.Order{}, false
 	}
-	poppedOrder := Order{}
+	poppedOrder := order.Order{}
 	popIndex := -1
 	for index, listOrder := range orderList {
-		if order == listOrder {
+		if ord == listOrder {
 			popIndex = index
 			poppedOrder = orderList[popIndex]
 		}
@@ -264,7 +318,7 @@ func popOrder(orderList []Order, order Order) ([]Order, Order, bool) {
 
 	// If we couldnt find a matching order
 	if popIndex == -1 {
-		return orderList, Order{}, false
+		return orderList, order.Order{}, false
 	}
 
 	orderList = append(orderList[:popIndex], orderList[popIndex+1:]...)
@@ -290,7 +344,7 @@ func Decode(out []byte) OrderNetworkMsg {
 	return incomingMsg
 }
 
-func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeersList []string, allElevatorStates map[string]elevator.Elevator, ordersConfirmed_CAB map[string][]Order, myID string, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
+func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activePeersList []string, allElevatorStates map[string]elevator.Elevator, ordersConfirmed_CAB map[string][]order.Order, myID string, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	hraInput := hallRequestAssigner.HRAInput{
 		HallRequests: make([][2]bool, elevator.N_FLOORS),
 		States:       make(map[string]hallRequestAssigner.HRAElevState),
@@ -338,19 +392,19 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []Order, activePeers
 	}
 }
 
-func isCabOrder(order Order) bool {
+func isCabOrder(order order.Order) bool {
 	return order.OrderType == elevator.B_Cab
 }
 
-func isHallOrder(order Order) bool {
+func isHallOrder(order order.Order) bool {
 	return order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp
 }
 
-func sameFloorAndDirection(firstOrder Order, secondOrder Order) bool {
+func sameFloorAndDirection(firstOrder order.Order, secondOrder order.Order) bool {
 	return firstOrder.OrderFloor == secondOrder.OrderFloor && firstOrder.OrderType == secondOrder.OrderType
 }
 
-func isAlreadyInConfirmedList(order Order, confirmedHallList []Order, confirmedCabList []Order) bool {
+func isAlreadyInConfirmedList(order order.Order, confirmedHallList []order.Order, confirmedCabList []order.Order) bool {
 	switch order.OrderType {
 	case elevator.B_Cab:
 		for _, confirmedOrder := range confirmedCabList {
@@ -370,7 +424,7 @@ func isAlreadyInConfirmedList(order Order, confirmedHallList []Order, confirmedC
 	return false
 }
 
-func hasNoOrders(hallOrders []Order, cabOrders map[string][]Order) bool {
+func hasNoOrders(hallOrders []order.Order, cabOrders map[string][]order.Order) bool {
 	if !(len(hallOrders) == 0) {
 		return false
 	}
@@ -382,7 +436,7 @@ func hasNoOrders(hallOrders []Order, cabOrders map[string][]Order) bool {
 	return true
 }
 
-func orderListsToRequestArray(hallOrders []Order, cabOrders []Order) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
+func orderListsToRequestArray(hallOrders []order.Order, cabOrders []order.Order) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
 
 	requestArray := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
 
@@ -444,16 +498,17 @@ func requestsBelow(floor int, direction elevator.MotorDirection, requests [eleva
 	return false
 }
 
-func newOrder(ID string, floor int, button elevator.Button, orderState currentOrderState) Order {
-	return Order{
-		PeerID:            ID,
-		OrderFloor:        floor,
-		OrderType:         button,
-		CurrentOrderState: orderState,
+// !Obsolete!
+func newOrder(ID string, floor int, button elevator.Button, orderState order.SyncOrderState) order.Order {
+	return order.Order{
+		PeerID:     ID,
+		OrderFloor: floor,
+		OrderType:  button,
+		OrderState: orderState,
 	}
 }
 
-func newOrderNetworkMsg(ID string, elevatorStates map[string]elevator.Elevator, orderMap map[string]Order, hallList []Order, cabList map[string][]Order) OrderNetworkMsg {
+func newOrderNetworkMsg(ID string, elevatorStates map[string]elevator.Elevator, orderMap map[string]order.Order, hallList []order.Order, cabList map[string][]order.Order) OrderNetworkMsg {
 	return OrderNetworkMsg{
 		PeerID:               ID,
 		AllElevatorStates:    elevatorStates,
