@@ -19,6 +19,8 @@ type PeerUpdate struct {
 	Lost  []string
 }
 
+const debug = true
+
 const interval = 15 * time.Millisecond
 const timeout = 500 * time.Millisecond
 
@@ -95,6 +97,9 @@ func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 				updated = true
 				p.Lost = append(p.Lost, k)
 				delete(lastSeen, k)
+				if debug {
+					log.Printf("LOST PEER: %s", k)
+				}
 			}
 		}
 

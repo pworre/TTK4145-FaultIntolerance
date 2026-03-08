@@ -11,6 +11,8 @@ import (
 
 // Finite state machine loop
 
+const debug = true
+
 func StateMachineLoop(startFloor int,
 	buttonEvent chan elevator.ButtonEvent, floorEvent chan int, obstructionEvent chan bool,
 	doorTimeout chan bool, setFloorIndicator chan int, inactivityTimeout chan bool, keepObstructed chan bool, obstructionTimeout chan bool,
@@ -76,11 +78,17 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 			keepDoorOpen <- true
 			stillActive <- true
 		} else {
-			newRequest <- elevator.ButtonEvent{btnFloor, btnType}
+			newRequest <- elevator.ButtonEvent{
+				Floor: btnFloor,
+				Button: btnType,
+			}
 		}
 
 	default:
-		newRequest <- elevator.ButtonEvent{btnFloor, btnType}
+		newRequest <- elevator.ButtonEvent{
+			Floor: btnFloor,
+			Button: btnType,
+		}
 	}
 
 	// Return transformed state
@@ -97,10 +105,29 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	nextState := currentState
 	nextState.Requests = assignment
 
+	// ! DEBUG PRINTING
+	if debug{
+		if nextState.Behaviour == elevator.EB_Idle {
+			log.Print("Elevator is idle")
+		} else {
+			log.Print("Elevator is not idle")
+		}
+	}
+	
+
 	// State transformation and action outputs via message passing
 	switch nextState.Behaviour {
 	case elevator.EB_Idle:
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
+
+		// ! DEBUG PRINTING
+		if debug {
+			if nextState.Behaviour == elevator.EB_Moving {
+				log.Println("Elevator should be moving!")
+			} else {
+				log.Println("Elevator should not be moving!")
+			}
+		}
 
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
@@ -108,10 +135,14 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 
 			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button:elevator.B_HallDown}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
@@ -151,10 +182,14 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 			openDoor <- true
 			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button: elevator.B_HallDown}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
@@ -187,10 +222,14 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			keepDoorOpen <- true
 			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button: elevator.B_HallUp}
 			} 
 			if shouldClearDownButton {
-				servicedRequest <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				servicedRequest <- elevator.ButtonEvent{
+					Floor: nextState.Floor, 
+					Button: elevator.B_HallDown}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true

@@ -81,6 +81,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 		case incomingOrderToSyncMapShallowCopy := <-newOrderStateReceival:
 			incomingOrderToSyncMap := copyMap(incomingOrderToSyncMapShallowCopy)
+			
 			for incomingID, incomingOrderToSync := range incomingOrderToSyncMap {
 				switch incomingOrderToSync.OrderState {
 				case order.SOS_NONE:

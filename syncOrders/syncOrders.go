@@ -226,9 +226,18 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		case msgReceivedBytes := <-networkRx:
 			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
+			if msgReceived.OrderToSyncMap == nil {
+				msgReceived.OrderToSyncMap = make(map[string]order.Order)
+			}
+			if msgReceived.OrdersConfirmed_CAB == nil {
+				msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
+			}	
+			if msgReceived.AllElevatorStates == nil {
+				msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
+			}
 
 			orderToSyncMap = msgReceived.OrderToSyncMap
-			newOrderStateReceival <- orderToSyncMap
+			newOrderStateReceival <- order.CloneOrderMap(msgReceived.OrderToSyncMap)
 
 			allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
 
@@ -352,7 +361,12 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	for _, order := range ordersConfirmed_HALL {
 		hraInput.HallRequests[order.OrderFloor][order.OrderType] = true
 	}
-	for _, peerID := range activePeersList {
+	// Active IDs pluss myself as input for hallRequestAssigner
+	ids := make([]string, 0, len(activePeersList)+1)
+	ids = append(ids, myID)
+	ids = append(ids, activePeersList...)
+
+	for _, peerID := range ids {
 		// convert elevator.behaviour [int] to hra.behaviour [string]
 		var elevBehaviour_hra string
 		switch allElevatorStates[peerID].Behaviour {
@@ -375,7 +389,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		}
 
 		cabRequests_hra := make([]bool, elevator.N_FLOORS)
-		for _, cabOrder := range ordersConfirmed_CAB[myID] {
+		for _, cabOrder := range ordersConfirmed_CAB[peerID] {
 			cabRequests_hra[cabOrder.OrderFloor] = true
 		}
 
@@ -386,10 +400,13 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 			CabRequests: cabRequests_hra,
 		}
 
-		newAssignmentMap := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
-		newAssignment := newAssignmentMap[myID]
-		assignEvent <- newAssignment
+		
 	}
+	newAssignmentMap := hallRequestAssigner.Decode(
+		hallRequestAssigner.AssignOrders(
+			hallRequestAssigner.Encode(hraInput)))
+	newAssignment := newAssignmentMap[myID]
+	assignEvent <- newAssignment
 }
 
 func isCabOrder(order order.Order) bool {
@@ -511,9 +528,9 @@ func newOrder(ID string, floor int, button elevator.Button, orderState order.Syn
 func newOrderNetworkMsg(ID string, elevatorStates map[string]elevator.Elevator, orderMap map[string]order.Order, hallList []order.Order, cabList map[string][]order.Order) OrderNetworkMsg {
 	return OrderNetworkMsg{
 		PeerID:               ID,
-		AllElevatorStates:    elevatorStates,
-		OrderToSyncMap:       orderMap,
-		OrdersConfirmed_HALL: hallList,
-		OrdersConfirmed_CAB:  cabList,
+		AllElevatorStates:    order.CloneAllElevatorStateMap(elevatorStates),
+		OrderToSyncMap:       order.CloneOrderMap(orderMap),
+		OrdersConfirmed_HALL: order.CloneHallOrders(hallList),
+		OrdersConfirmed_CAB:  order.CloneCabOrders(cabList),
 	}
 }
