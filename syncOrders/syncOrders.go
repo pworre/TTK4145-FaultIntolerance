@@ -142,6 +142,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				default:
 				}
 			}
+			log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
@@ -156,6 +157,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 				// ? Think about this internal scope setlights and tx, same below
+				log.Println("OMG GUYS I JUST CONFIRMED AN ORDER AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
@@ -202,6 +204,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			// ? Is this scope trixing really necessary?
 			if wasDeleted {
+				log.Println("OMG GUYS I JUST DELETED AN ORDER AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
@@ -220,6 +223,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 		case newElevatorState := <-localStateChange:
 			allElevatorStates[myID] = newElevatorState
+			log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
 			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
@@ -284,16 +288,14 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 }
 
 func peersUpdateRepeater(chIn <-chan peers.PeerUpdate, chOut1 chan peers.PeerUpdate, chOut2 chan peers.PeerUpdate, chOut3 chan peers.PeerUpdate, chOut4 chan peers.PeerUpdate) {
-	for {
-		select {
-		case update := <-chIn:
-			chOut1 <- peers.PeerUpdateClone(update)
-			chOut2 <- peers.PeerUpdateClone(update)
-			chOut3 <- peers.PeerUpdateClone(update)
-			chOut4 <- peers.PeerUpdateClone(update)
-			log.Println("SUCCESSFUL CLONE!!!")
-		}
+	for update := range chIn {
+		chOut1 <- peers.PeerUpdateClone(update)
+		chOut2 <- peers.PeerUpdateClone(update)
+		chOut3 <- peers.PeerUpdateClone(update)
+		chOut4 <- peers.PeerUpdateClone(update)
+		log.Println("SUCCESSFUL CLONE!!!")
 	}
+
 }
 
 func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitMessage chan OrderNetworkMsg, transmitEnable chan bool) {
@@ -311,6 +313,7 @@ func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitM
 		}
 		if enable {
 			networkTx <- Encode(orderTransmitMessage)
+			log.Println("I WANT TO SEND!")
 		}
 	}
 }
