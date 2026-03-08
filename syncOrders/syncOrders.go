@@ -399,7 +399,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		hraInput.HallRequests[order.OrderFloor][order.OrderType] = true
 	}
 	// Active IDs pluss myself as input for hallRequestAssigner
-	ids := append([]string{myID}, activePeersList...)
+	ids := append(activePeersList, myID)
 
 	for _, peerID := range ids {
 		// convert elevator.behaviour [int] to hra.behaviour [string]
