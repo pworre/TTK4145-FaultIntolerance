@@ -76,7 +76,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	newOrderStateTransition := make(chan map[string]order.Order, 1024)
 
-	newOrderStateReceival := make(chan map[string]order.Order)
+	newOrderStateReceival := make(chan map[string]order.Order, 1024)
 
 	peerUpdateInSyncOrders := make(chan peers.PeerUpdate, 1024)
 	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate, 1024)
@@ -208,7 +208,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						newHallList = append(newHallList, order)
 					}
 				}
-				if (len(newHallList) == len(ordersConfirmed_HALL)) {
+				if len(newHallList) == len(ordersConfirmed_HALL) {
 					log.Println("Could not pop hallOrder")
 				} else {
 					wasDeleted = true
