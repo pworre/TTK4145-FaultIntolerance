@@ -11,6 +11,8 @@ import (
 
 // Finite state machine loop
 
+const debug = true
+
 func StateMachineLoop(startFloor int,
 	buttonEvent chan elevator.ButtonEvent, floorEvent chan int, obstructionEvent chan bool,
 	doorTimeout chan bool, setFloorIndicator chan int, inactivityTimeout chan bool, keepObstructed chan bool, obstructionTimeout chan bool,
@@ -118,6 +120,15 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	switch nextState.Behaviour {
 	case elevator.EB_Idle:
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
+
+		// ! DEBUG PRINTING
+		if debug {
+			if nextState.Behaviour == elevator.EB_Moving {
+				log.Println("Elevator should be moving!")
+			} else {
+				log.Println("Elevator should not be moving!")
+			}
+		}
 
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
