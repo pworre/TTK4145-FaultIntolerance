@@ -119,6 +119,21 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	allElevatorStates := make(map[string]elevator.Elevator)
 	allElevatorStates[myID] = elevator.NewStartElevator(startFloor)
 
+	go func() {
+		for newPeerUpdateShallowCopy := range peerUpdateInSyncOrders {
+			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
+			log.Printf("OMG I HAVE A FRIEND!")
+			activePeersList = newPeerUpdate.Peers
+			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
+			if len(activePeersList) == 0 {
+				networkDisconnect <- true
+			}
+			for _, str := range activePeersList {
+				log.Printf("Peer number: %s", str)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case requestToAdd := <-newRequest:
@@ -266,19 +281,21 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					}
 				}
 			}
+			/*
+				// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
+				case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
+					newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
+					log.Printf("OMG I HAVE A FRIEND!")
+					activePeersList = newPeerUpdate.Peers
+					// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
+					if len(activePeersList) == 0 {
+						networkDisconnect <- true
+					}
+					for _, str := range activePeersList {
+						log.Printf("Peer number: %s", str)
+					}
+			*/
 
-		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-		case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
-			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
-			log.Printf("OMG I HAVE A FRIEND!")
-			activePeersList = newPeerUpdate.Peers
-			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
-			if len(activePeersList) == 0 {
-				networkDisconnect <- true
-			}
-			for _, str := range activePeersList {
-				log.Printf("Peer number: %s", str)
-			}
 		}
 		SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL, activePeersList, allElevatorStates, ordersConfirmed_CAB, myID, assignEvent)
 
