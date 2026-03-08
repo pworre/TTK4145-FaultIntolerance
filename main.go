@@ -60,7 +60,7 @@ func main() {
 	newRequest := make(chan elevator.ButtonEvent)
 	servicedRequest := make(chan elevator.ButtonEvent)
 	//orderSyncBuffer := make(chan syncOrders.Order, 1024)
-	localStateChange := make(chan elevator.Elevator)
+	localStateChange := make(chan elevator.Elevator, 1024)
 	//ordersConfirmed := make(chan []syncOrders.Order)
 	//globalOrderCompleted_ := make(chan [][]bool)
 
