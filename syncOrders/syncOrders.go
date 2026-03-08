@@ -8,6 +8,7 @@ import (
 	"log"
 	"networkDriver/bcast"
 	"networkDriver/peers"
+	"reflect"
 	"slices"
 	"syncOrders/order"
 	"syncOrders/syncOrderFSM"
@@ -331,11 +332,16 @@ func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitM
 	for {
 		select {
 		case enable = <-transmitEnable:
-		case orderTransmitMessage = <-updateTransmitMessage:
+		case proposedMessage := <-updateTransmitMessage:
+			if !reflect.DeepEqual(proposedMessage, orderTransmitMessage) {
+				orderTransmitMessage = proposedMessage
+				enable = true
+			}
 		case <-ticker.C:
 		}
 		if enable {
 			networkTx <- Encode(orderTransmitMessage)
+			enable = false
 			//log.Println("I WANT TO SEND!")
 		}
 	}
