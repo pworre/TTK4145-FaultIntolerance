@@ -8,7 +8,6 @@ import (
 	"log"
 	"networkDriver/bcast"
 	"networkDriver/peers"
-	"reflect"
 	"slices"
 	"syncOrders/order"
 	"syncOrders/syncOrderFSM"
@@ -100,7 +99,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage, transmitEnable)
 
 	// TODO: Check if necessary to make deep copies of the peerUpdates
-	go repeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
+	go peersUpdateRepeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
 
 	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
 
@@ -284,12 +283,15 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	}
 }
 
-func repeater(ch_in interface{}, chs_out ...interface{}) {
+func peersUpdateRepeater(chIn <-chan peers.PeerUpdate, chOut1 chan peers.PeerUpdate, chOut2 chan peers.PeerUpdate, chOut3 chan peers.PeerUpdate, chOut4 chan peers.PeerUpdate) {
 	for {
-		v, _ := reflect.ValueOf(ch_in).Recv()
-
-		for _, c := range chs_out {
-			reflect.ValueOf(c).Send(v)
+		select {
+		case update := <-chIn:
+			chOut1 <- peers.PeerUpdateClone(update)
+			chOut2 <- peers.PeerUpdateClone(update)
+			chOut3 <- peers.PeerUpdateClone(update)
+			chOut4 <- peers.PeerUpdateClone(update)
+			log.Println("SUCCESSFUL CLONE!!!")
 		}
 	}
 }
