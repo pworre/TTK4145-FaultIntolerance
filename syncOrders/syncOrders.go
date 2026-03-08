@@ -237,7 +237,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			}
 
 			orderToSyncMap = msgReceived.OrderToSyncMap
-			newOrderStateReceival <- orderToSyncMap
+			newOrderStateReceival <- order.CloneOrderMap(msgReceived.OrderToSyncMap)
 
 			allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
 
@@ -528,9 +528,9 @@ func newOrder(ID string, floor int, button elevator.Button, orderState order.Syn
 func newOrderNetworkMsg(ID string, elevatorStates map[string]elevator.Elevator, orderMap map[string]order.Order, hallList []order.Order, cabList map[string][]order.Order) OrderNetworkMsg {
 	return OrderNetworkMsg{
 		PeerID:               ID,
-		AllElevatorStates:    elevatorStates,
-		OrderToSyncMap:       orderMap,
-		OrdersConfirmed_HALL: hallList,
-		OrdersConfirmed_CAB:  cabList,
+		AllElevatorStates:    order.CloneAllElevatorStateMap(elevatorStates),
+		OrderToSyncMap:       order.CloneOrderMap(orderMap),
+		OrdersConfirmed_HALL: order.CloneHallOrders(hallList),
+		OrdersConfirmed_CAB:  order.CloneCabOrders(cabList),
 	}
 }
