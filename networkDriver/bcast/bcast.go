@@ -3,7 +3,6 @@ package bcast
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"networkDriver/conn"
 	"reflect"
@@ -42,13 +41,6 @@ func Transmitter(port int, chans ...interface{}) {
 				len(ttj), bufSize, string(ttj)))
 		}
 		conn.WriteTo(ttj, addr)
-		n, err := conn.WriteTo(ttj, addr)
-		if err != nil {
-			log.Println("UDP send error:", err)
-		} else {
-			log.Println("UDP sent bytes:", n)
-		}
-
 	}
 }
 

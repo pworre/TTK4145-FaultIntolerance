@@ -330,7 +330,7 @@ func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitM
 		}
 		if enable {
 			networkTx <- Encode(orderTransmitMessage)
-			log.Println("I WANT TO SEND!")
+			//log.Println("I WANT TO SEND!")
 		}
 	}
 }
