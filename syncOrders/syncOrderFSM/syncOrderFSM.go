@@ -35,8 +35,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 	// TODO: End channels
 
-	go requestBarrierStateCounter(peerUpdateInRequestBarrierStateCounter, iAmAtRequestBarrier, allAgreeToAddOrder)
-	go deletionBarrierStateCounter(peerUpdateInDeletionBarrierStateCounter, iAmAtDeleteBarrier, allAgreeToDeleteOrder)
+	go requestBarrierStateCounter(myID, peerUpdateInRequestBarrierStateCounter, iAmAtRequestBarrier, allAgreeToAddOrder)
+	go deletionBarrierStateCounter(myID, peerUpdateInDeletionBarrierStateCounter, iAmAtDeleteBarrier, allAgreeToDeleteOrder)
 
 	// ! VERY IMPORTANT ! Go over and see every time that a map or slice is sent on a channel!!! In both cases they must be copied...
 
@@ -88,14 +88,14 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						case order.SOS_CONFIRMED_REQUEST:
 							// Add confirmed order, turn on lights
 							// ! Double-check that the order has state completed
-							confirmedRequest <- localOrderToSyncMap[myID]
-							updateOrderStateInMap(localOrderToSyncMap, myID, order.SOS_NONE)
+							confirmedRequest <- localOrderToSyncMap[incomingID]
+							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_NONE)
 
 						case order.SOS_CONFIRMED_DELETION:
 							// Remove completed order, turn off lights
 							// ! Double-check that the order has state completed
-							confirmedDeletion <- localOrderToSyncMap[myID]
-							updateOrderStateInMap(localOrderToSyncMap, myID, order.SOS_NONE)
+							confirmedDeletion <- localOrderToSyncMap[incomingID]
+							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_NONE)
 
 						default:
 
@@ -138,7 +138,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
+							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						default:
@@ -206,7 +206,7 @@ func isKeyInMap[T any](key string, theMap map[string]T) bool {
 
 // ! These should probably both be moved to OrderSync and spawned as threads within there
 // ! peerUpdate should prob be own channel
-func requestBarrierStateCounter(peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, iAmAtRequestBarrier chan acknowledgeBarrier, allAgreeToAddOrder chan string) {
+func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, iAmAtRequestBarrier chan acknowledgeBarrier, allAgreeToAddOrder chan string) {
 	activePeersList := make([]string, 0)
 	peersThatHaveConfirmedRequest := make(map[string][]string)
 
@@ -237,7 +237,7 @@ func requestBarrierStateCounter(peerUpdateInRequestBarrierStateCounter chan peer
 		}
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range activePeersList {
-			if containSameElements(activePeersList, peersThatHaveConfirmedRequest[peerID]) {
+			if containSameElements(append(activePeersList, myID), peersThatHaveConfirmedRequest[peerID]) {
 				allAgreeToAddOrder <- peerID
 				peersThatHaveConfirmedRequest[peerID] = make([]string, 0)
 			}
@@ -245,7 +245,7 @@ func requestBarrierStateCounter(peerUpdateInRequestBarrierStateCounter chan peer
 	}
 }
 
-func deletionBarrierStateCounter(peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtDeleteBarrier chan acknowledgeBarrier, allAgreeToDeleteOrder chan string) {
+func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtDeleteBarrier chan acknowledgeBarrier, allAgreeToDeleteOrder chan string) {
 	activePeersList := make([]string, 0)
 	peersThatHaveConfirmedDelete := make(map[string][]string)
 
@@ -276,7 +276,7 @@ func deletionBarrierStateCounter(peerUpdateInDeletionBarrierStateCounter chan pe
 		}
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range activePeersList {
-			if containSameElements(activePeersList, peersThatHaveConfirmedDelete[peerID]) {
+			if containSameElements(append(activePeersList, myID), peersThatHaveConfirmedDelete[peerID]) {
 				allAgreeToDeleteOrder <- peerID
 				peersThatHaveConfirmedDelete[peerID] = make([]string, 0)
 			}

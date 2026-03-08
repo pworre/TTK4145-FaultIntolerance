@@ -79,10 +79,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	newOrderStateReceival := make(chan map[string]order.Order)
 
-	peerUpdateInSyncOrders := make(chan peers.PeerUpdate)
-	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate)
-	peerUpdateInRequestBarrierStateCounter := make(chan peers.PeerUpdate)
-	peerUpdateInDeletionBarrierStateCounter := make(chan peers.PeerUpdate)
+	peerUpdateInSyncOrders := make(chan peers.PeerUpdate, 1024)
+	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate, 1024)
+	peerUpdateInRequestBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
+	peerUpdateInDeletionBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
 	//waitForReconnection := make(chan peers.PeerUpdate)
 
 	// TODO: End channels
@@ -93,7 +93,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	// Not used yet, but could possibly be used for networkDisconnect instead of current solution
 	transmitEnable := make(chan bool)
 
-	updateTransmitMessage := make(chan OrderNetworkMsg)
+	updateTransmitMessage := make(chan OrderNetworkMsg, 1024)
 
 	go bcast.Transmitter(G_BCAST_PORT, networkTx)
 	go bcast.Receiver(G_BCAST_PORT, networkRx)
