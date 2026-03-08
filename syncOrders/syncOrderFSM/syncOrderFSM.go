@@ -165,6 +165,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 		for _, str := range activePeersList {
 			log.Printf("Peer number: %s", str)
 		}
+
+		log.Println("FSM localOrderToSyncMap: ", localOrderToSyncMap)
 	}
 }
 
