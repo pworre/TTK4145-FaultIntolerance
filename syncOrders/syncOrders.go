@@ -59,7 +59,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
-const TRANSMIT_INTERVAL = 15 * time.Millisecond
+const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
 const G_BCAST_PORT = 25532
 
@@ -250,11 +250,6 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				// We discard messages from peers that are not yet recognized by the peers module
 				if isElementInList(msgReceived.PeerID, activePeersList) {
 
-
-
-
-
-
 					// !!!!!!!!!! Can probably comment out!
 					// ! This doesnt make sense?? We should never get nil for these fields?
 					if msgReceived.OrderToSyncMap == nil {
@@ -273,12 +268,6 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
 					}
 					// !!!!!!!!!!! End comment
-
-
-
-
-
-					
 
 					// ! Probably the big mistake!!!!!!!!!
 					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
