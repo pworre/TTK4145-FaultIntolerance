@@ -106,7 +106,6 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	nextState.Requests = assignment
 
 	// ! DEBUG PRINTING
-	debug := true
 	if debug{
 		if nextState.Behaviour == elevator.EB_Idle {
 			log.Print("Elevator is idle")

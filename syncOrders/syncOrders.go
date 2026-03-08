@@ -361,7 +361,12 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	for _, order := range ordersConfirmed_HALL {
 		hraInput.HallRequests[order.OrderFloor][order.OrderType] = true
 	}
-	for _, peerID := range activePeersList {
+	// Active IDs pluss myself as input for hallRequestAssigner
+	ids := make([]string, 0, len(activePeersList)+1)
+	ids = append(ids, myID)
+	ids = append(ids, activePeersList...)
+
+	for _, peerID := range ids {
 		// convert elevator.behaviour [int] to hra.behaviour [string]
 		var elevBehaviour_hra string
 		switch allElevatorStates[peerID].Behaviour {
@@ -395,7 +400,10 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 			CabRequests: cabRequests_hra,
 		}
 
-		newAssignmentMap := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
+		newAssignmentMap := hallRequestAssigner.Decode(
+			hallRequestAssigner.AssignOrders(
+				hallRequestAssigner.Encode(hraInput)))
+				
 		newAssignment := newAssignmentMap[myID]
 		assignEvent <- newAssignment
 	}
