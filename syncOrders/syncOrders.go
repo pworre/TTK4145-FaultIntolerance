@@ -74,7 +74,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	confirmedRequest := make(chan order.Order)
 	confirmedDeletion := make(chan order.Order)
 
-	newOrderStateTransition := make(chan map[string]order.Order)
+	newOrderStateTransition := make(chan map[string]order.Order, 1024)
 
 	newOrderStateReceival := make(chan map[string]order.Order)
 
@@ -208,7 +208,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						newHallList = append(newHallList, order)
 					}
 				}
-				if !(len(newHallList) == len(ordersConfirmed_HALL)) {
+				if (len(newHallList) == len(ordersConfirmed_HALL)) {
 					log.Println("Could not pop hallOrder")
 				} else {
 					wasDeleted = true
@@ -271,7 +271,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				newOrderStateReceival <- order.MapClone(msgReceived.OrderToSyncMap)
 
-				allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
+				allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
 
 				// If an elevator just joins the network, it accepts the first received lists of confirmed orders
 				if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {

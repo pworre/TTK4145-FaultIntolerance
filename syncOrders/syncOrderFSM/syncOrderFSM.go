@@ -249,9 +249,8 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 	activePeersList := make([]string, 0)
 	peersThatHaveConfirmedDelete := make(map[string][]string)
 
-	for {
-		select {
-		case newPeerUpdateShallowCopy := <-peerUpdateInDeletionBarrierStateCounter:
+	go func() {
+		for newPeerUpdateShallowCopy := range peerUpdateInDeletionBarrierStateCounter {
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			activePeersList = newPeerUpdate.Peers
 			// Update map
@@ -266,7 +265,11 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 				}
 			}
 			// activePeersList and the peersThatHaveConfirmedDelete map keys should always have the same elements in them
+		}
+	}()
 
+	for {
+		select {
 		case acknowledgement := <-iAmAtDeleteBarrier:
 			ownerID := acknowledgement.ownerID
 			ackID := acknowledgement.ackID
