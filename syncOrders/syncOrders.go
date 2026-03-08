@@ -400,13 +400,13 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 			CabRequests: cabRequests_hra,
 		}
 
-		newAssignmentMap := hallRequestAssigner.Decode(
-			hallRequestAssigner.AssignOrders(
-				hallRequestAssigner.Encode(hraInput)))
-				
-		newAssignment := newAssignmentMap[myID]
-		assignEvent <- newAssignment
+		
 	}
+	newAssignmentMap := hallRequestAssigner.Decode(
+		hallRequestAssigner.AssignOrders(
+			hallRequestAssigner.Encode(hraInput)))
+	newAssignment := newAssignmentMap[myID]
+	assignEvent <- newAssignment
 }
 
 func isCabOrder(order order.Order) bool {
