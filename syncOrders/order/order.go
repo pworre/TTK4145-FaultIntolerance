@@ -31,6 +31,17 @@ func NewOrder(ID string, floor int, button elevator.Button, orderState SyncOrder
 	}
 }
 
+func MapClone[M ~map[string]T, T any](theMap M) M {
+	clone := make(M, len(theMap))
+	for key, val := range theMap {
+		clone[key] = val
+	}
+	return clone
+}
+
+// ! For all map clones, just use the function above, and for slices, just use slices.Clone()
+
+/* 
 func CloneOrderMap(mapToClone map[string]Order) map[string]Order {
 	clonedMap := make(map[string]Order, len(mapToClone))
 	for id, order := range mapToClone {
@@ -46,6 +57,7 @@ func CloneAllElevatorStateMap(mapToClone map[string]elevator.Elevator) map[strin
 	}
 	return clonedMap
 }
+
 
 func CloneCabOrders(mapToClone map[string][]Order) map[string][]Order {
 	clonedMap := make(map[string][]Order, len(mapToClone))
@@ -63,3 +75,4 @@ func CloneHallOrders(listToClone []Order) []Order {
 	return clonedList
 }
 
+*/

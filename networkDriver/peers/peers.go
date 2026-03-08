@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"networkDriver/conn"
+	"slices"
 	"sort"
 	"time"
 )
@@ -113,8 +114,16 @@ func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 
 			sort.Strings(p.Peers)
 			sort.Strings(p.Lost)
-			peerUpdateCh <- p
+			peerUpdateCh <- PeerUpdateClone(p)
 			log.Printf("NEW PEER ARRIVED")
 		}
+	}
+}
+
+func PeerUpdateClone(p PeerUpdate) PeerUpdate {
+	return PeerUpdate{
+	Peers : slices.Clone(p.Peers),
+	New : p.New,
+	Lost : slices.Clone(p.Lost),
 	}
 }

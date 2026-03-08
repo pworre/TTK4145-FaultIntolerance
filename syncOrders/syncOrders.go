@@ -9,11 +9,14 @@ import (
 	"networkDriver/bcast"
 	"networkDriver/peers"
 	"reflect"
+	"slices"
 	"syncOrders/order"
 	"syncOrders/syncOrderFSM"
 	"time"
 	//"syncOrders/syncOrderFSM"
 )
+
+// ! Personlig brainfart: Hadde vel egt ikke trengt å sende en orderToSyncMap...? Kunne bare sett på ID-en til heisen og tatt hensyn til det deretter...? Eller nei, det går jo ikke........ Men kunne hatt en ordre-ID??? Kanskje like komplisert
 
 // TODO: Fix all channel needs, go through last logic (like ex. hra), go over overall and see if things should be moved, added or restructured. Tie together with orderSyncFSM and start testing
 // TODO: Consider what threads should live where. peers.Transmitter is for instance spawned in main, but networkSending is spawned in here
@@ -101,7 +104,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, waitForReconnection)
 
-	// ! VERY IMPORTANT ! When new peer initializes and joins, it sets itself as none and everyone else as unknown
+	// ! VERY IMPORTANT ! When new peer initializes and joins, it should set itself as none and everyone else as unknown
 	// ! Is this handled by default, or must we explicitly enforce this?
 
 	orderSyncBuffer := make(chan order.Order, 1024)
@@ -130,19 +133,18 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			orderSyncBuffer <- orderToRemove
 
 		case orderToSyncMap = <-newOrderStateTransition:
-			if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+			// TODO: Try commenting the first if statement
+			if !isKeyInMap(myID, orderToSyncMap) {
+				orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+			} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 				select {
 				case orderToSyncMap[myID] = <-orderSyncBuffer:
 
 				default:
 				}
-
-				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
-			} else {
-				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 			}
+			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
+			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 		case orderToAdd := <-confirmedRequest:
 			log.Printf("GUYS THERE IS A CONFIRMED ORDER")
@@ -226,32 +228,45 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		case msgReceivedBytes := <-networkRx:
 			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 			msgReceived := Decode(msgReceivedBytes)
-			if msgReceived.OrderToSyncMap == nil {
-				msgReceived.OrderToSyncMap = make(map[string]order.Order)
-			}
-			if msgReceived.OrdersConfirmed_CAB == nil {
-				msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
-			}	
-			if msgReceived.AllElevatorStates == nil {
-				msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
-			}
 
-			orderToSyncMap = msgReceived.OrderToSyncMap
-			newOrderStateReceival <- order.CloneOrderMap(msgReceived.OrderToSyncMap)
+			// We discard messages from peers that are not yet recognized by the peers module
+			if isElementInList(msgReceived.PeerID, activePeersList) {
+				// ! This doesnt make sense?? We should never get nil for these fields?
+				if msgReceived.OrderToSyncMap == nil {
+					log.Println("This is weird??? Try the thing under!")
+					msgReceived.OrderToSyncMap = make(map[string]order.Order)
+					// Here:
+					//for _ , peerID := range activePeersList {
+					//	msgReceived.OrderToSyncMap[peerID] = order.NewOrder(peerID, 0, elevator.B_Cab, order.SOS_NONE) // Maybe UNKNOWN instead????
+					//}
+					//msgReceived.OrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+				}
+				if msgReceived.OrdersConfirmed_CAB == nil {
+					msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
+				}
+				if msgReceived.AllElevatorStates == nil {
+					msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
+				}
 
-			allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
+				// ! Probably the big mistake!!!!!!!!!
+				//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
 
-			// If an elevator just joins the network, it accepts the first received lists of confirmed orders
-			if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
-				if !hasNoOrders(msgReceived.OrdersConfirmed_HALL, msgReceived.OrdersConfirmed_CAB) {
-					ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
-					ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+				newOrderStateReceival <- order.MapClone(msgReceived.OrderToSyncMap)
+
+				allElevatorStates = msgReceived.AllElevatorStates // Fine I guess? Your own states should match up
+
+				// If an elevator just joins the network, it accepts the first received lists of confirmed orders
+				if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
+					if !hasNoOrders(msgReceived.OrdersConfirmed_HALL, msgReceived.OrdersConfirmed_CAB) {
+						ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
+						ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+					}
 				}
 			}
 
 		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-		case newPeerUpdate := <-peerUpdateInSyncOrders:
-
+		case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
+			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
 			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
@@ -362,9 +377,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		hraInput.HallRequests[order.OrderFloor][order.OrderType] = true
 	}
 	// Active IDs pluss myself as input for hallRequestAssigner
-	ids := make([]string, 0, len(activePeersList)+1)
-	ids = append(ids, myID)
-	ids = append(ids, activePeersList...)
+	ids := append([]string{myID}, activePeersList...)
 
 	for _, peerID := range ids {
 		// convert elevator.behaviour [int] to hra.behaviour [string]
@@ -400,7 +413,6 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 			CabRequests: cabRequests_hra,
 		}
 
-		
 	}
 	newAssignmentMap := hallRequestAssigner.Decode(
 		hallRequestAssigner.AssignOrders(
@@ -528,9 +540,23 @@ func newOrder(ID string, floor int, button elevator.Button, orderState order.Syn
 func newOrderNetworkMsg(ID string, elevatorStates map[string]elevator.Elevator, orderMap map[string]order.Order, hallList []order.Order, cabList map[string][]order.Order) OrderNetworkMsg {
 	return OrderNetworkMsg{
 		PeerID:               ID,
-		AllElevatorStates:    order.CloneAllElevatorStateMap(elevatorStates),
-		OrderToSyncMap:       order.CloneOrderMap(orderMap),
-		OrdersConfirmed_HALL: order.CloneHallOrders(hallList),
-		OrdersConfirmed_CAB:  order.CloneCabOrders(cabList),
+		AllElevatorStates:    order.MapClone(elevatorStates),
+		OrderToSyncMap:       order.MapClone(orderMap),
+		OrdersConfirmed_HALL: slices.Clone(hallList),
+		OrdersConfirmed_CAB:  order.MapClone(cabList),
 	}
+}
+
+func isElementInList(elem string, list []string) bool {
+	for _, listElem := range list {
+		if elem == listElem {
+			return true
+		}
+	}
+	return false
+}
+
+func isKeyInMap[T any](key string, theMap map[string]T) bool {
+	_, isInMap := theMap[key]
+	return isInMap
 }
