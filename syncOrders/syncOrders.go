@@ -389,7 +389,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		}
 
 		cabRequests_hra := make([]bool, elevator.N_FLOORS)
-		for _, cabOrder := range ordersConfirmed_CAB[myID] {
+		for _, cabOrder := range ordersConfirmed_CAB[peerID] {
 			cabRequests_hra[cabOrder.OrderFloor] = true
 		}
 
