@@ -249,6 +249,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				// We discard messages from peers that are not yet recognized by the peers module
 				if isElementInList(msgReceived.PeerID, activePeersList) {
+
+
+
+
+
+
+					// !!!!!!!!!! Can probably comment out!
 					// ! This doesnt make sense?? We should never get nil for these fields?
 					if msgReceived.OrderToSyncMap == nil {
 						log.Println("This is weird??? Try the thing under!")
@@ -265,6 +272,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					if msgReceived.AllElevatorStates == nil {
 						msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
 					}
+					// !!!!!!!!!!! End comment
+
+
+
+
+
+					
 
 					// ! Probably the big mistake!!!!!!!!!
 					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
@@ -300,7 +314,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			*/
 
 		}
-		SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL, activePeersList, allElevatorStates, ordersConfirmed_CAB, myID, assignEvent)
+		SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
 
 		/// !END CHECKOUT!
 
