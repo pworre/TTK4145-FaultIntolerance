@@ -119,8 +119,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	allElevatorStates := make(map[string]elevator.Elevator)
 	allElevatorStates[myID] = elevator.NewStartElevator(startFloor)
 
-	go func() {
-		for newPeerUpdateShallowCopy := range peerUpdateInSyncOrders {
+	for {
+		select {
+		case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
@@ -131,157 +132,158 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			for _, str := range activePeersList {
 				log.Printf("Peer number: %s", str)
 			}
-		}
-	}()
 
-	for {
-		select {
-		case requestToAdd := <-newRequest:
-			log.Printf("OMG I GOT A REQUEST!!!")
-			orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, order.SOS_UNCONFIRMED_REQUEST)
-			orderSyncBuffer <- orderToAdd
+		default:
+			select {
+			case requestToAdd := <-newRequest:
+				log.Printf("OMG I GOT A REQUEST!!!")
+				orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, order.SOS_UNCONFIRMED_REQUEST)
+				orderSyncBuffer <- orderToAdd
 
-		case requestToRemove := <-servicedRequest:
-			log.Printf("OMG I DID AN ORDER!!!")
-			orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, order.SOS_UNCONFIRMED_DELETION)
-			orderSyncBuffer <- orderToRemove
+			case requestToRemove := <-servicedRequest:
+				log.Printf("OMG I DID AN ORDER!!!")
+				orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, order.SOS_UNCONFIRMED_DELETION)
+				orderSyncBuffer <- orderToRemove
 
-		case orderToSyncMap = <-newOrderStateTransition:
-			log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
-			// TODO: Try commenting the first if statement
-			if !isKeyInMap(myID, orderToSyncMap) {
-				orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
-			} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
-				select {
-				case orderToSyncMap[myID] = <-orderSyncBuffer:
+			case orderToSyncMap = <-newOrderStateTransition:
+				log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
+				// TODO: Try commenting the first if statement
+				if !isKeyInMap(myID, orderToSyncMap) {
+					orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+					select {
+					case orderToSyncMap[myID] = <-orderSyncBuffer:
 
-				default:
+					default:
+					}
 				}
-			}
-			log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
-			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
-
-		case orderToAdd := <-confirmedRequest:
-			log.Printf("GUYS THERE IS A CONFIRMED ORDER")
-			if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[myID]) {
-				if isHallOrder(orderToAdd) {
-					ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
-				}
-				if isCabOrder(orderToAdd) {
-					ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToAdd)
-				}
-
-				// ? Think about this internal scope setlights and tx, same below
-				log.Println("OMG GUYS I JUST CONFIRMED AN ORDER AND WANT TO SEND A MESSAGE!")
+				log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
-				// Reached Barrier state, we can now safely do side effects
-				buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
-				setLights <- buttonsToLight
-			}
-
-		case orderToDelete := <-confirmedDeletion:
-
-			wasDeleted := false
-
-			if isCabOrder(orderToDelete) {
-
-				// For cabOrders we should only pop the order for the elevator the cab belongs to
-				newCabList, _, isPopped := popOrder(ordersConfirmed_CAB[orderToDelete.PeerID], orderToDelete)
-				if !isPopped {
-					log.Println("Could not pop cabOrder")
-				} else {
-					wasDeleted = true
-				}
-				ordersConfirmed_CAB[orderToDelete.PeerID] = newCabList
-
-			} else if isHallOrder(orderToDelete) {
-
-				// For hallOrders we assume everyone gets on when the elevator comes,
-				// so we remove all orders that have the same floor and buttontype,
-				// regardless of which elevator placed the request
-				newHallList := []order.Order{}
-
-				for _, order := range ordersConfirmed_HALL {
-					if !sameFloorAndDirection(order, orderToDelete) {
-						newHallList = append(newHallList, order)
+			case orderToAdd := <-confirmedRequest:
+				log.Printf("GUYS THERE IS A CONFIRMED ORDER")
+				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[myID]) {
+					if isHallOrder(orderToAdd) {
+						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
 					}
-				}
-				if len(newHallList) == len(ordersConfirmed_HALL) {
-					log.Println("Could not pop hallOrder")
-				} else {
-					wasDeleted = true
+					if isCabOrder(orderToAdd) {
+						ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToAdd)
+					}
+
+					// ? Think about this internal scope setlights and tx, same below
+					log.Println("OMG GUYS I JUST CONFIRMED AN ORDER AND WANT TO SEND A MESSAGE!")
+					updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
+					log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+
+					// Reached Barrier state, we can now safely do side effects
+					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+					setLights <- buttonsToLight
 				}
 
-				ordersConfirmed_HALL = newHallList
-			}
+			case orderToDelete := <-confirmedDeletion:
 
-			// ? Is this scope trixing really necessary?
-			if wasDeleted {
-				log.Println("OMG GUYS I JUST DELETED AN ORDER AND WANT TO SEND A MESSAGE!")
+				wasDeleted := false
+
+				if isCabOrder(orderToDelete) {
+
+					// For cabOrders we should only pop the order for the elevator the cab belongs to
+					newCabList, _, isPopped := popOrder(ordersConfirmed_CAB[orderToDelete.PeerID], orderToDelete)
+					if !isPopped {
+						log.Println("Could not pop cabOrder")
+					} else {
+						wasDeleted = true
+					}
+					ordersConfirmed_CAB[orderToDelete.PeerID] = newCabList
+
+				} else if isHallOrder(orderToDelete) {
+
+					// For hallOrders we assume everyone gets on when the elevator comes,
+					// so we remove all orders that have the same floor and buttontype,
+					// regardless of which elevator placed the request
+					newHallList := []order.Order{}
+
+					for _, order := range ordersConfirmed_HALL {
+						if !sameFloorAndDirection(order, orderToDelete) {
+							newHallList = append(newHallList, order)
+						}
+					}
+					if len(newHallList) == len(ordersConfirmed_HALL) {
+						log.Println("Could not pop hallOrder")
+					} else {
+						wasDeleted = true
+					}
+
+					ordersConfirmed_HALL = newHallList
+				}
+
+				// ? Is this scope trixing really necessary?
+				if wasDeleted {
+					log.Println("OMG GUYS I JUST DELETED AN ORDER AND WANT TO SEND A MESSAGE!")
+					updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
+					log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+
+					// Reached Barrier state, we can now safely do side effects
+					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+					setLights <- buttonsToLight
+				}
+
+				/// !TO CHECK OUT! Where does this logic belong?
+
+			// HMMMMMMM
+			case <-clearAllConfirmedOrders:
+				ordersConfirmed_HALL = make([]order.Order, 0)
+				ordersConfirmed_CAB = make(map[string][]order.Order)
+
+			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
+			case newElevatorState := <-localStateChange:
+				allElevatorStates[myID] = newElevatorState
+				log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
-				// Reached Barrier state, we can now safely do side effects
-				buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
-				setLights <- buttonsToLight
-			}
+			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
+			case msgReceivedBytes := <-networkRx:
+				log.Printf("OMG I JUST RECEIVED A MESSAGE!")
+				msgReceived := Decode(msgReceivedBytes)
 
-			/// !TO CHECK OUT! Where does this logic belong?
+				// We discard messages from peers that are not yet recognized by the peers module
+				if isElementInList(msgReceived.PeerID, activePeersList) {
+					// ! This doesnt make sense?? We should never get nil for these fields?
+					if msgReceived.OrderToSyncMap == nil {
+						log.Println("This is weird??? Try the thing under!")
+						msgReceived.OrderToSyncMap = make(map[string]order.Order)
+						// Here:
+						//for _ , peerID := range activePeersList {
+						//	msgReceived.OrderToSyncMap[peerID] = order.NewOrder(peerID, 0, elevator.B_Cab, order.SOS_NONE) // Maybe UNKNOWN instead????
+						//}
+						//msgReceived.OrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+					}
+					if msgReceived.OrdersConfirmed_CAB == nil {
+						msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
+					}
+					if msgReceived.AllElevatorStates == nil {
+						msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
+					}
 
-		// HMMMMMMM
-		case <-clearAllConfirmedOrders:
-			ordersConfirmed_HALL = make([]order.Order, 0)
-			ordersConfirmed_CAB = make(map[string][]order.Order)
+					// ! Probably the big mistake!!!!!!!!!
+					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
 
-		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-		case newElevatorState := <-localStateChange:
-			allElevatorStates[myID] = newElevatorState
-			log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
-			updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-			log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+					newOrderStateReceival <- order.MapClone(msgReceived.OrderToSyncMap)
 
-		// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-		case msgReceivedBytes := <-networkRx:
-			log.Printf("OMG I JUST RECEIVED A MESSAGE!")
-			msgReceived := Decode(msgReceivedBytes)
+					allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
 
-			// We discard messages from peers that are not yet recognized by the peers module
-			if isElementInList(msgReceived.PeerID, activePeersList) {
-				// ! This doesnt make sense?? We should never get nil for these fields?
-				if msgReceived.OrderToSyncMap == nil {
-					log.Println("This is weird??? Try the thing under!")
-					msgReceived.OrderToSyncMap = make(map[string]order.Order)
-					// Here:
-					//for _ , peerID := range activePeersList {
-					//	msgReceived.OrderToSyncMap[peerID] = order.NewOrder(peerID, 0, elevator.B_Cab, order.SOS_NONE) // Maybe UNKNOWN instead????
-					//}
-					//msgReceived.OrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
-				}
-				if msgReceived.OrdersConfirmed_CAB == nil {
-					msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
-				}
-				if msgReceived.AllElevatorStates == nil {
-					msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
-				}
-
-				// ! Probably the big mistake!!!!!!!!!
-				//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
-
-				newOrderStateReceival <- order.MapClone(msgReceived.OrderToSyncMap)
-
-				allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
-
-				// If an elevator just joins the network, it accepts the first received lists of confirmed orders
-				if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
-					if !hasNoOrders(msgReceived.OrdersConfirmed_HALL, msgReceived.OrdersConfirmed_CAB) {
-						ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
-						ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+					// If an elevator just joins the network, it accepts the first received lists of confirmed orders
+					if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
+						if !hasNoOrders(msgReceived.OrdersConfirmed_HALL, msgReceived.OrdersConfirmed_CAB) {
+							ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
+							ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+						}
 					}
 				}
+
 			}
+
 			/*
 				// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 				case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
