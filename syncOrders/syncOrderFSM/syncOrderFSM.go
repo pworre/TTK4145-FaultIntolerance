@@ -28,8 +28,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 	// TODO: Random channels, sort later
 
-	iAmAtRequestBarrier := make(chan acknowledgeBarrier)
-	iAmAtDeleteBarrier := make(chan acknowledgeBarrier)
+	iAmAtRequestBarrier := make(chan acknowledgeBarrier, 64)
+	iAmAtDeleteBarrier := make(chan acknowledgeBarrier, 64)
 
 	allAgreeToAddOrder := make(chan string)
 	allAgreeToDeleteOrder := make(chan string)
@@ -113,6 +113,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						case order.SOS_UNCONFIRMED_REQUEST:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
+							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we also have it, so we make the executive decision to move on!")
 
 						default:
@@ -127,6 +128,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						case order.SOS_UNCONFIRMED_DELETION:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
+							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						default:
 
@@ -223,6 +225,7 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 	activePeersList := make([]string, 0)
 	fullList := make([]string, 0)
 	peersThatHaveConfirmedRequest := make(map[string][]string)
+	log.Println("Entered the requestBarrierStateCounter!!!")
 
 	for {
 		select {
@@ -245,6 +248,7 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 			// activePeersList and the peersThatHaveConfirmedRequest map keys should always have the same elements in them
 
 		case acknowledgement := <-iAmAtRequestBarrier:
+			log.Println("WTF????????? SHOULD PRINT")
 			ownerID := acknowledgement.ownerID
 			ackID := acknowledgement.ackID
 			if !(isElementInList(ackID, peersThatHaveConfirmedRequest[ownerID])) {
