@@ -67,7 +67,6 @@ const G_BCAST_PORT = 25532
 func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, newRequest <-chan elevator.ButtonEvent, servicedRequest <-chan elevator.ButtonEvent, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	myID := cfg.ID
 
-
 	// TODO: Not initialize the ordersyncmap with an actual order, since it vill be completed... Leave empty until assigned
 
 	// TODO: Random channels, sort later
@@ -154,9 +153,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
-				if !isKeyInMap(myID, orderToSyncMap) {
-					orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
-				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+				//if !isKeyInMap(myID, orderToSyncMap) {
+				//	orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+				//}
+				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case orderToSyncMap[myID] = <-orderSyncBuffer:
 

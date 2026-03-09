@@ -24,7 +24,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 	activePeersList := make([]string, 0) // Most likely not needed???
 
 	localOrderToSyncMap := make(map[string]order.Order)
-	localOrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+	//localOrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
 
 	// TODO: Random channels, sort later
 
