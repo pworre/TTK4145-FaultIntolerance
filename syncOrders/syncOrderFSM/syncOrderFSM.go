@@ -124,11 +124,13 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							// Need a second barrier, also for the unconfirmation......
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
+							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
+							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
 
 						default:
