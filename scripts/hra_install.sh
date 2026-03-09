@@ -17,6 +17,7 @@ mkdir -p "$HRA_PATH"
 
 echo "Cleaning old binaries and object files..."
 rm -f "$HRA_PATH/hall_request_assigner"
+rm -f "$HRA_PATH/hall_request_assigner.o"
 rm -f "$JSONX_PATH/jsonx.o"
 
 echo "Building jsonx library..."

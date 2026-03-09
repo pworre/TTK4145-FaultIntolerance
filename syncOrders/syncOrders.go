@@ -157,16 +157,18 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
-				if !isKeyInMap(myID, orderToSyncMap) {
-					orderToSyncMap[myID] = order.NewEmptyOrder(myID)
-				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+				//if !isKeyInMap(myID, orderToSyncMap) {
+				//	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
+				//}
+
+				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case nextLocalOrder := <-orderSyncBuffer:
 						orderToSyncMap[myID] = nextLocalOrder
-						
+
 						newOrderStateReceival <- order.OrderStateMessage{
-							OrderToSyncMap: 	order.MapClone(orderToSyncMap),
-							TransmittedPeerID: 	myID,
+							OrderToSyncMap:    order.MapClone(orderToSyncMap),
+							TransmittedPeerID: myID,
 						}
 					default:
 					}
@@ -304,7 +306,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						allElevatorStates[id] = state
 					}
 					allElevatorStates[myID] = latestLocalElevatorState
-					
+
 					// allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
 
 					// If an elevator just joins the network, it accepts the first received lists of confirmed orders
@@ -318,23 +320,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			}
 
-			/*
-				// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
-				case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
-					newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
-					log.Printf("OMG I HAVE A FRIEND!")
-					activePeersList = newPeerUpdate.Peers
-					// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
-					if len(activePeersList) == 0 {
-						networkDisconnect <- true
-					}
-					for _, str := range activePeersList {
-						log.Printf("Peer number: %s", str)
-					}
-			*/
+			log.Println("FULL LIST OF CONFIRMED HALLORDERS: ", ordersConfirmed_HALL)
+			log.Println("FULL LIST OF CONFIRMED CABORDERS: ", ordersConfirmed_CAB)
 
 		}
-		
+
 		/// !END CHECKOUT!
 
 	}

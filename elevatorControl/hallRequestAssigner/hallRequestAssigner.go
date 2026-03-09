@@ -52,7 +52,7 @@ func AssignOrders(jsonString string) string {
 
 	hraExecutable := ""
 	switch runtime.GOOS {
-	case "linux":
+	case "linux", "darwin":
 		hraExecutable = "hall_request_assigner"
 	case "windows":
 		hraExecutable = "hall_request_assigner.exe"
