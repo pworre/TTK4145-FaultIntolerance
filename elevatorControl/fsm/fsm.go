@@ -155,7 +155,7 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 					Floor:  nextState.Floor,
 					Button: elevator.B_Cab}
 			}
-			//nextState = requests.ClearAtCurrentFloor(nextState)
+			nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 
 		case elevator.EB_Moving:
@@ -206,7 +206,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 					Floor:  nextState.Floor,
 					Button: elevator.B_Cab}
 			}
-			//nextState = requests.ClearAtCurrentFloor(nextState)
+			nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
 			//setLights <- nextState.Requests

@@ -133,7 +133,6 @@ func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool, bool) {
 	return shouldClearUpButton, shouldClearDownButton, shouldClearCabButton
 }
 
-/*
 func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	e.Requests[e.Floor][elevator.B_Cab] = false
 	switch e.Direction {
@@ -156,4 +155,3 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	
 	return e
 }
-	*/
