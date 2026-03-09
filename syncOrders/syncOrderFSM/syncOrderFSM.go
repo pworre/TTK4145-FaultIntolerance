@@ -142,13 +142,16 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						default:
 
 						}
-						// TODO: Last barrier also
+
 					case order.SOS_CONFIRMED_REQUEST:
 						//incomingConfirmedRequest(incomingOrderToSync.PeerID)
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_REQUEST:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
+							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+
+						case order.SOS_CONFIRMED_REQUEST:
 							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						default:
@@ -161,6 +164,9 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
+							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+
+						case order.SOS_CONFIRMED_DELETION:
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						default:
