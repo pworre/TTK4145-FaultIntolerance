@@ -120,6 +120,10 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
+						case order.SOS_UNCONFIRMED_REQUEST:
+							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
+
 						default:
 
 						}
@@ -132,10 +136,13 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
+						case order.SOS_UNCONFIRMED_DELETION:
+							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+
 						default:
 
 						}
-
+						// TODO: Last barrier also
 					case order.SOS_CONFIRMED_REQUEST:
 						//incomingConfirmedRequest(incomingOrderToSync.PeerID)
 

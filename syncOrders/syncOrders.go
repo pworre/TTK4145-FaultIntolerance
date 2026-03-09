@@ -285,8 +285,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// If an elevator just joins the network, it accepts the first received lists of confirmed orders
 					if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
 						if !hasNoOrders(msgReceived.OrdersConfirmed_HALL, msgReceived.OrdersConfirmed_CAB) {
-							ordersConfirmed_HALL = msgReceived.OrdersConfirmed_HALL
-							ordersConfirmed_CAB = msgReceived.OrdersConfirmed_CAB
+							ordersConfirmed_HALL = slices.Clone(msgReceived.OrdersConfirmed_HALL)
+							ordersConfirmed_CAB = order.MapClone(msgReceived.OrdersConfirmed_CAB)
 						}
 					}
 				}
