@@ -153,10 +153,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
-				//if !isKeyInMap(myID, orderToSyncMap) {
-				//	orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
-				//}
-				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+				if !isKeyInMap(myID, orderToSyncMap) {
+					orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case orderToSyncMap[myID] = <-orderSyncBuffer:
 
