@@ -119,7 +119,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_NONE:
-							localOrderToSyncMap[key_ID] = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_UNCONFIRMED_REQUEST)
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 
 							// Need a second barrier, also for the unconfirmation......
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
@@ -141,7 +141,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_NONE:
-							localOrderToSyncMap[key_ID] = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_UNCONFIRMED_DELETION)
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
@@ -160,7 +160,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_UNCONFIRMED_REQUEST:
-							localOrderToSyncMap[key_ID] = updateOrderStateInMap(incomingOrderToSyncMap, key_ID, order.SOS_CONFIRMED_REQUEST)
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_REQUEST:
@@ -176,7 +176,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
-							localOrderToSyncMap[key_ID] = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_CONFIRMED_DELETION)
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_DELETION:
