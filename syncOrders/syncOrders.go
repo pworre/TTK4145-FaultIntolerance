@@ -60,7 +60,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
-const debug_sync = true
+const debug_sync = false
 
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
@@ -161,25 +161,27 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
 				//}
 
-				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+				copyMap := order.MapClone(orderToSyncMap)
+
+				if copyMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case nextLocalOrder := <-orderSyncBuffer:
-						orderToSyncMap[myID] = nextLocalOrder
+						copyMap[myID] = nextLocalOrder
 
-						newOrderStateReceival <- order.OrderStateMessage{
-							OrderToSyncMap:    order.MapClone(orderToSyncMap),
-							TransmittedPeerID: myID,
-						}
+						//newOrderStateReceival <- order.OrderStateMessage{
+						//	OrderToSyncMap:    order.MapClone(orderToSyncMap),
+						//	TransmittedPeerID: myID,
+						//}
 					default:
 					}
 				}
 				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
-				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
+				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, copyMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			case orderToAdd := <-confirmedRequest:
 				//log.Printf("GUYS THERE IS A CONFIRMED ORDER")
-				log.Printf("CONFIRMED ORDER ADDED: %+v\n", orderToAdd)
+				//log.Printf("CONFIRMED ORDER ADDED: %+v\n", orderToAdd)
 				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[orderToAdd.PeerID]) {
 					if isHallOrder(orderToAdd) {
 						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
@@ -189,9 +191,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					}
 
 					// ? Think about this internal scope setlights and tx, same below
-					log.Println("OMG GUYS I JUST CONFIRMED AN ORDER AND WANT TO SEND A MESSAGE!")
+					//log.Println("OMG GUYS I JUST CONFIRMED AN ORDER AND WANT TO SEND A MESSAGE!")
 					updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-					log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+					//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 					// Reached Barrier state, we can now safely do side effects
 					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
@@ -203,17 +205,28 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			case orderToDelete := <-confirmedDeletion:
 
+				log.Println("Hello!! I want to delete this order: ", orderToDelete)
+				log.Println("FULL LIST OF CONFIRMED HALLORDERS: ", ordersConfirmed_HALL)
+				log.Println("FULL LIST OF CONFIRMED CABORDERS: ", ordersConfirmed_CAB)
+
 				wasDeleted := false
 
 				if isCabOrder(orderToDelete) {
 
+					newCabList := []order.Order{}
+
 					// For cabOrders we should only pop the order for the elevator the cab belongs to
-					newCabList, _, isPopped := popOrder(ordersConfirmed_CAB[orderToDelete.PeerID], orderToDelete)
-					if !isPopped {
+					for _, ord := range ordersConfirmed_CAB[orderToDelete.PeerID] {
+						if !(ord.OrderFloor == orderToDelete.OrderFloor) {
+							newCabList = append(newCabList, ord)
+						}
+					}
+					if len(newCabList) == len(ordersConfirmed_CAB[orderToDelete.PeerID]) {
 						log.Println("Could not pop cabOrder")
 					} else {
 						wasDeleted = true
 					}
+
 					ordersConfirmed_CAB[orderToDelete.PeerID] = newCabList
 
 				} else if isHallOrder(orderToDelete) {
@@ -223,9 +236,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// regardless of which elevator placed the request
 					newHallList := []order.Order{}
 
-					for _, order := range ordersConfirmed_HALL {
-						if !sameFloorAndDirection(order, orderToDelete) {
-							newHallList = append(newHallList, order)
+					for _, ord := range ordersConfirmed_HALL {
+						if !sameFloorAndDirection(ord, orderToDelete) {
+							newHallList = append(newHallList, ord)
 						}
 					}
 					if len(newHallList) == len(ordersConfirmed_HALL) {
@@ -239,9 +252,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				// ? Is this scope trixing really necessary?
 				if wasDeleted {
-					log.Println("OMG GUYS I JUST DELETED AN ORDER AND WANT TO SEND A MESSAGE!")
+					//log.Println("OMG GUYS I JUST DELETED AN ORDER AND WANT TO SEND A MESSAGE!")
 					updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-					log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+					//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+
+					log.Println("I THINK I MANAGED TO DELETE THIS ORDER: ", orderToDelete)
+					log.Println("UPDATED HALLORDER LIST: ", ordersConfirmed_HALL)
+					log.Println("UPDATED CABORDER LIST: ", ordersConfirmed_CAB)
 
 					// Reached Barrier state, we can now safely do side effects
 					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
@@ -249,7 +266,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 				SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
-				log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
+				//log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
 
 				/// !TO CHECK OUT! Where does this logic belong?
 
@@ -267,7 +284,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 				SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
-				log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
+				//log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case msgReceivedBytes := <-networkRx:
 				//log.Printf("OMG I JUST RECEIVED A MESSAGE!")
@@ -319,10 +336,6 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 			}
-
-			log.Println("FULL LIST OF CONFIRMED HALLORDERS: ", ordersConfirmed_HALL)
-			log.Println("FULL LIST OF CONFIRMED CABORDERS: ", ordersConfirmed_CAB)
-
 		}
 
 		/// !END CHECKOUT!
@@ -485,30 +498,33 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	assignEvent <- newAssignment
 }
 
-func isCabOrder(order order.Order) bool {
-	return order.OrderType == elevator.B_Cab
+func isCabOrder(ord order.Order) bool {
+	return ord.OrderType == elevator.B_Cab
 }
 
-func isHallOrder(order order.Order) bool {
-	return order.OrderType == elevator.B_HallDown || order.OrderType == elevator.B_HallUp
+func isHallOrder(ord order.Order) bool {
+	return ord.OrderType == elevator.B_HallDown || ord.OrderType == elevator.B_HallUp
 }
 
 func sameFloorAndDirection(firstOrder order.Order, secondOrder order.Order) bool {
 	return firstOrder.OrderFloor == secondOrder.OrderFloor && firstOrder.OrderType == secondOrder.OrderType
 }
 
-func isAlreadyInConfirmedList(order order.Order, confirmedHallList []order.Order, confirmedCabList []order.Order) bool {
-	switch order.OrderType {
+func isAlreadyInConfirmedList(ord order.Order, confirmedHallList []order.Order, confirmedCabList []order.Order) bool {
+	switch ord.OrderType {
 	case elevator.B_Cab:
 		for _, confirmedOrder := range confirmedCabList {
-			if order == confirmedOrder {
+			if confirmedOrder.OrderType != elevator.B_Cab {
+				log.Println("VERY BAD!!!!! WE HAVE HALLORDERS IN THE CONFIRMED CABLIST!!!")
+			}
+			if ord.OrderFloor == confirmedOrder.OrderFloor {
 				return true
 			}
 		}
 
 	default:
 		for _, confirmedOrder := range confirmedHallList {
-			if order == confirmedOrder {
+			if sameFloorAndDirection(ord, confirmedOrder) {
 				return true
 			}
 		}

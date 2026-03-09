@@ -21,7 +21,7 @@ type acknowledgeBarrier struct {
 
 func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order.Order, newOrderStateReceival chan order.OrderStateMessage, confirmedRequest chan order.Order, confirmedDeletion chan order.Order, networkDisconnect chan bool, clearAllConfirmedOrders chan bool, peerUpdateInSyncOrdersFSM chan peers.PeerUpdate, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate) {
 
-	activePeersList := make([]string, 0) // Most likely not needed???
+	//activePeersList := make([]string, 0) // Most likely not needed???
 
 	localOrderToSyncMap := make(map[string]order.Order)
 	localOrderToSyncMap[myID] = order.NewEmptyOrder(myID)
@@ -58,7 +58,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 		select {
 		case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrdersFSM:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
-			activePeersList = newPeerUpdate.Peers
+			//activePeersList = newPeerUpdate.Peers
 			// Update localOrderToSyncMap
 			if newPeerUpdate.New != "" {
 				if !(isKeyInMap(newPeerUpdate.New, localOrderToSyncMap)) {
@@ -96,12 +96,22 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						case order.SOS_CONFIRMED_REQUEST:
 							// Add confirmed order, turn on lights
 							// ! Double-check that the order has state completed
+
+							if localOrderToSyncMap[key_ID].OrderState == order.SOS_NONE {
+								log.Println("WARNING: Attempt to add NONE order to confirmed request list:", localOrderToSyncMap[key_ID])
+							}
+
 							confirmedRequest <- localOrderToSyncMap[key_ID]
 							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 
 						case order.SOS_CONFIRMED_DELETION:
 							// Remove completed order, turn off lights
 							// ! Double-check that the order has state completed
+
+							if localOrderToSyncMap[key_ID].OrderState == order.SOS_NONE {
+								log.Println("WARNING: Attempt to add NONE order to confirmed delete list:", localOrderToSyncMap[key_ID])
+							}
+
 							confirmedDeletion <- localOrderToSyncMap[key_ID]
 							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 
@@ -143,12 +153,12 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						case order.SOS_NONE:
 							localOrderToSyncMap[key_ID] = incomingOrderToSync
 
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							log.Printf("Peer %s sending UNCONFIRMED REQUEST ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_UNCONFIRMED_DELETION:
 							localOrderToSyncMap[key_ID] = incomingOrderToSync
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							log.Printf("Peer %s sending UNCONFIRMED DELETE ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						default:
@@ -196,32 +206,47 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			// Add confirmed order, turn on lights
 			// ! Double-check that the order has state completed
 			log.Printf("FSM adding confirmedRequest %+v\n", localOrderToSyncMap[peerThatCanAddOrder])
+			if localOrderToSyncMap[peerThatCanAddOrder].OrderState == order.SOS_NONE {
+				log.Println("WARNING: FSM attempt to add NONE order to confirmed request list:", localOrderToSyncMap[peerThatCanAddOrder])
+			}
 			confirmedRequest <- localOrderToSyncMap[peerThatCanAddOrder]
-			localOrderToSyncMap[peerThatCanAddOrder] = updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
+			updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
+
+			// !!!!!!!!!!!!!!!IMPORTANT!!!!!!!!!!!!!!!
+
+			// ! For some reason, NONE orders are added to be deleted.
+			// ! There must be an error in the fsm logic or the barrier state counter somewhere, but have not found it yet.
+			// ! But adding a request seems to be fine, so that is weird i guess...
 
 		case peerThatCanDeleteOrder := <-allAgreeToDeleteOrder:
 			// Remove completed order, turn off lights
 			// ! Double-check that the order has state completed
-			confirmedDeletion <- localOrderToSyncMap[peerThatCanDeleteOrder]
-			localOrderToSyncMap[peerThatCanDeleteOrder] = updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
+			log.Printf("FSM adding confirmedDeletion %+v\n", localOrderToSyncMap[peerThatCanDeleteOrder])
+
+			if localOrderToSyncMap[peerThatCanDeleteOrder].OrderState != order.SOS_NONE {
+				confirmedDeletion <- localOrderToSyncMap[peerThatCanDeleteOrder]
+				updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
+			} else {
+				log.Println("WARNING: FSM attempt to add NONE order to confirmed delete list:", localOrderToSyncMap[peerThatCanDeleteOrder], "but we skipped it")
+			}
 
 		case peerThatCanMoveToConfirmRequest := <-allHaveUnconfirmedRequest:
-			localOrderToSyncMap[peerThatCanMoveToConfirmRequest] = updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmRequest, order.SOS_CONFIRMED_REQUEST)
+			updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmRequest, order.SOS_CONFIRMED_REQUEST)
 			iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirmRequest, ackID: myID}
 			log.Println(peerThatCanMoveToConfirmRequest, "has an order that is unconfirmed for everyone, so we make the executive decision to move on!")
 
 		case peerThatCanMoveToConfirmDeletion := <-allHaveUnconfirmedDeletion:
-			localOrderToSyncMap[peerThatCanMoveToConfirmDeletion] = updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmDeletion, order.SOS_CONFIRMED_DELETION)
+			updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmDeletion, order.SOS_CONFIRMED_DELETION)
 			iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirmDeletion, ackID: myID}
 
 		}
 		newOrderStateTransition <- MapCopy(localOrderToSyncMap) // Deep copy of map to be sent
 
-		for _, str := range activePeersList {
-			log.Printf("Peer number: %s", str)
-		}
+		//for _, str := range activePeersList {
+		//	log.Printf("Peer number: %s", str)
+		//}
 
-		log.Println("FSM localOrderToSyncMap: ", localOrderToSyncMap)
+		//log.Println("FSM localOrderToSyncMap: ", localOrderToSyncMap)
 	}
 }
 
@@ -346,6 +371,10 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 					delete(peersThatHaveConfirmedDelete, peerID)
 				}
 			}
+
+			if !isKeyInMap(myID, peersThatHaveConfirmedDelete) {
+				peersThatHaveConfirmedDelete[myID] = []string{}
+			}
 			// activePeersList and the peersThatHaveConfirmedDelete map keys should always have the same elements in them
 
 		case acknowledgement := <-iAmAtDeleteBarrier:
@@ -391,7 +420,9 @@ func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedR
 			}
 
 			// We are also one of the peers that must possibly acknowledge
-			peersThatHaveUnconfirmedRequest[myID] = []string{}
+			if !isKeyInMap(myID, peersThatHaveUnconfirmedRequest) {
+				peersThatHaveUnconfirmedRequest[myID] = []string{}
+			}
 
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT UNCONFIRMED LIST????? ", fullList)
 			// activePeersList and the peersThatHaveConfirmedRequest map keys should always have the same elements in them
@@ -444,6 +475,11 @@ func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmed
 					delete(peersThatHaveUnconfirmedDelete, peerID)
 				}
 			}
+
+			if !isKeyInMap(myID, peersThatHaveUnconfirmedDelete) {
+				peersThatHaveUnconfirmedDelete[myID] = []string{}
+			}
+
 			// activePeersList and the peersThatHaveConfirmedDelete map keys should always have the same elements in them
 
 		case acknowledgement := <-iAmAtUnconfirmedDeleteBarrier:
@@ -471,7 +507,7 @@ func MapCopy(oldMap map[string]order.Order) map[string]order.Order {
 	return newMap
 }
 
-func updateOrderStateInMap(incomingMap map[string]order.Order, key string, state order.SyncOrderState) order.Order{
-	currentOrder := order.NewOrder(key, incomingMap[key].OrderFloor, incomingMap[key].OrderType, state)
-	return currentOrder
+func updateOrderStateInMap(incomingMap map[string]order.Order, key string, state order.SyncOrderState) {
+	currentOrder := incomingMap[key]
+	incomingMap[key] = order.NewOrder(key, currentOrder.OrderFloor, currentOrder.OrderType, state)
 }
