@@ -30,11 +30,11 @@ func StateMachineLoop(startFloor int,
 	for {
 		select {
 		case buttonPressed := <-buttonEvent:
-			log.Printf("BRO SOMEONE JUST PRESSED A BUTTON")
+			//log.Printf("BRO SOMEONE JUST PRESSED A BUTTON")
 			newState = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, newRequest)
 
 		case newAssignment := <-assignEvent:
-			log.Printf("OMG I JUST GOT AN ORDER!")
+			//log.Printf("OMG I JUST GOT AN ORDER!")
 			newState = OnNewAssignment(thisElevator, newAssignment, changeMotorDirection, servicedRequest, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:

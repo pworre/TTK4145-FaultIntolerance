@@ -137,17 +137,17 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 		default:
 			select {
 			case requestToAdd := <-newRequest:
-				log.Printf("OMG I GOT A REQUEST!!!")
+				//log.Printf("OMG I GOT A REQUEST!!!")
 				orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, order.SOS_UNCONFIRMED_REQUEST)
 				orderSyncBuffer <- orderToAdd
 
 			case requestToRemove := <-servicedRequest:
-				log.Printf("OMG I DID AN ORDER!!!")
+				//log.Printf("OMG I DID AN ORDER!!!")
 				orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, order.SOS_UNCONFIRMED_DELETION)
 				orderSyncBuffer <- orderToRemove
 
 			case orderToSyncMap = <-newOrderStateTransition:
-				log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
+				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
 				if !isKeyInMap(myID, orderToSyncMap) {
 					orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
@@ -163,7 +163,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			case orderToAdd := <-confirmedRequest:
-				log.Printf("GUYS THERE IS A CONFIRMED ORDER")
+				//log.Printf("GUYS THERE IS A CONFIRMED ORDER")
 				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[myID]) {
 					if isHallOrder(orderToAdd) {
 						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
@@ -245,7 +245,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case msgReceivedBytes := <-networkRx:
-				log.Printf("OMG I JUST RECEIVED A MESSAGE!")
+				//log.Printf("OMG I JUST RECEIVED A MESSAGE!")
 				msgReceived := Decode(msgReceivedBytes)
 
 				// We discard messages from peers that are not yet recognized by the peers module
