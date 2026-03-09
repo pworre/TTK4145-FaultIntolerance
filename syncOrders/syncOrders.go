@@ -60,6 +60,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
+
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
 const G_BCAST_PORT = 25532
@@ -79,7 +80,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	newOrderStateTransition := make(chan map[string]order.Order, 1024)
 
-	newOrderStateReceival := make(chan map[string]order.Order, 1024)
+	newOrderStateReceival := make(chan order.OrderStateMessage, 1024)
 
 	peerUpdateInSyncOrders := make(chan peers.PeerUpdate, 1024)
 	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate, 1024)
@@ -277,7 +278,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// ! Probably the big mistake!!!!!!!!!
 					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
 
-					newOrderStateReceival <- order.MapClone(msgReceived.OrderToSyncMap)
+					newOrderSyncMap := order.MapClone(msgReceived.OrderToSyncMap)
+					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: newOrderSyncMap, TransmittedPeerID: msgReceived.PeerID}
 
 					allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
 

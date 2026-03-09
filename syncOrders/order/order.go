@@ -22,6 +22,11 @@ type Order struct {
 	OrderState      SyncOrderState
 }
 
+type OrderStateMessage struct {
+	OrderToSyncMap		map[string]Order
+	TransmittedPeerID	string
+}
+
 func NewOrder(ID string, floor int, button elevator.Button, orderState SyncOrderState) Order {
 	return Order{
 		PeerID:     ID,

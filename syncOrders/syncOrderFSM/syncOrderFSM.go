@@ -19,7 +19,7 @@ type acknowledgeBarrier struct {
 
 // Finite state machine loop
 
-func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order.Order, newOrderStateReceival chan map[string]order.Order, confirmedRequest chan order.Order, confirmedDeletion chan order.Order, networkDisconnect chan bool, clearAllConfirmedOrders chan bool, peerUpdateInSyncOrdersFSM chan peers.PeerUpdate, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate) {
+func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order.Order, newOrderStateReceival chan order.OrderStateMessage, confirmedRequest chan order.Order, confirmedDeletion chan order.Order, networkDisconnect chan bool, clearAllConfirmedOrders chan bool, peerUpdateInSyncOrdersFSM chan peers.PeerUpdate, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedRequestBarrierStateCounter chan peers.PeerUpdate, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate) {
 
 	activePeersList := make([]string, 0) // Most likely not needed???
 
@@ -81,29 +81,30 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			// !OBS! Debugging!
 			//<-waitForReconnection // Blocks and does nothing until we are reconnected or restart
 
-		case incomingOrderToSyncMapShallowCopy := <-newOrderStateReceival:
-			incomingOrderToSyncMap := MapCopy(incomingOrderToSyncMapShallowCopy)
+		case incomingOrderToSyncMessage := <-newOrderStateReceival:
+			incomingOrderToSyncMap := MapCopy(incomingOrderToSyncMessage.OrderToSyncMap)
 			log.Println("Entering the orderSync state machine. Incoming map: ", incomingOrderToSyncMap)
+			incomingID := incomingOrderToSyncMessage.TransmittedPeerID
 
-			for incomingID, incomingOrderToSync := range incomingOrderToSyncMap {
-				if localOrderToSyncMap[incomingID].OrderState == order.SOS_UNKNOWN {
-					localOrderToSyncMap[incomingID] = incomingOrderToSync
+			for key_ID, incomingOrderToSync := range incomingOrderToSyncMap {
+				if localOrderToSyncMap[key_ID].OrderState == order.SOS_UNKNOWN {
+					localOrderToSyncMap[key_ID] = incomingOrderToSync
 				} else {
 					switch incomingOrderToSync.OrderState {
 					case order.SOS_NONE:
 
-						switch localOrderToSyncMap[incomingID].OrderState {
+						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_CONFIRMED_REQUEST:
 							// Add confirmed order, turn on lights
 							// ! Double-check that the order has state completed
-							confirmedRequest <- localOrderToSyncMap[incomingID]
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_NONE)
+							confirmedRequest <- localOrderToSyncMap[key_ID]
+							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 
 						case order.SOS_CONFIRMED_DELETION:
 							// Remove completed order, turn off lights
 							// ! Double-check that the order has state completed
-							confirmedDeletion <- localOrderToSyncMap[incomingID]
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_NONE)
+							confirmedDeletion <- localOrderToSyncMap[key_ID]
+							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 
 						default:
 							log.Println(incomingID, " told us they have no orders, and we dont care.")
@@ -112,22 +113,22 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_UNCONFIRMED_REQUEST:
 
-						iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+						iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
-						log.Printf("Peer %s sees UNCONFIRMED from %s\n", myID, incomingID)
+						log.Printf("Peer %s sees UNCONFIRMED for owner %s from sender %s\n", myID, key_ID, incomingID)
 
-						switch localOrderToSyncMap[incomingID].OrderState {
+						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_NONE:
-							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_REQUEST)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_UNCONFIRMED_REQUEST)
 
 							// Need a second barrier, also for the unconfirmation......
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
-							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
-							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 							log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
 
 						default:
@@ -136,18 +137,18 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_UNCONFIRMED_DELETION:
 
-						iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+						iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
-						switch localOrderToSyncMap[incomingID].OrderState {
+						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_NONE:
-							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_UNCONFIRMED_DELETION)
 
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
-							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
 						case order.SOS_UNCONFIRMED_DELETION:
-							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
-							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
 						default:
 
@@ -155,15 +156,15 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_CONFIRMED_REQUEST:
 						//incomingConfirmedRequest(incomingOrderToSync.PeerID)
-						iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+						iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
-						switch localOrderToSyncMap[incomingID].OrderState {
+						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_UNCONFIRMED_REQUEST:
-							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
-							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_CONFIRMED_REQUEST)
+							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_REQUEST:
-							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						default:
 
@@ -171,15 +172,15 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_CONFIRMED_DELETION:
 						//incomingConfirmedDeletion(incomingOrderToSync.PeerID)
-						iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+						iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: incomingID}
 
-						switch localOrderToSyncMap[incomingID].OrderState {
+						switch localOrderToSyncMap[key_ID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
-							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
-							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_CONFIRMED_DELETION)
+							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_DELETION:
-							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						default:
 
