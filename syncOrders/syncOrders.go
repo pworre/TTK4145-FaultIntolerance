@@ -158,8 +158,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					orderToSyncMap[myID] = order.NewEmptyOrder(myID)
 				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 					select {
-					case orderToSyncMap[myID] = <-orderSyncBuffer:
-
+					case nextLocalOrder := <-orderSyncBuffer:
+						orderToSyncMap[myID] = nextLocalOrder
+						
+						newOrderStateReceival <- order.OrderStateMessage{
+							OrderToSyncMap: 	order.MapClone(orderToSyncMap),
+							TransmittedPeerID: 	myID,
+						}
 					default:
 					}
 				}
