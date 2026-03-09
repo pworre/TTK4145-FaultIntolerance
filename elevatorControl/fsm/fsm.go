@@ -115,9 +115,9 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	// ! DEBUG PRINTING
 	if debug {
 		if nextState.Behaviour == elevator.EB_Idle {
-			log.Print("Elevator is idle")
+			//log.Print("Elevator is idle")
 		} else {
-			log.Print("Elevator is not idle")
+			//log.Print("Elevator is not idle")
 		}
 	}
 
@@ -129,9 +129,9 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 		// ! DEBUG PRINTING
 		if debug {
 			if nextState.Behaviour == elevator.EB_Moving {
-				log.Println("Elevator should be moving!")
+				//log.Println("Elevator should be moving!")
 			} else {
-				log.Println("Elevator should not be moving!")
+				//log.Println("Elevator should not be moving!")
 			}
 		}
 
