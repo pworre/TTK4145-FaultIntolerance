@@ -158,9 +158,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					default:
 					}
 				}
-				log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
+				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			case orderToAdd := <-confirmedRequest:
 				log.Printf("GUYS THERE IS A CONFIRMED ORDER")
