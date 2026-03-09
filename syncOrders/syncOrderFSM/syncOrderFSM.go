@@ -77,6 +77,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 		case incomingOrderToSyncMapShallowCopy := <-newOrderStateReceival:
 			incomingOrderToSyncMap := MapCopy(incomingOrderToSyncMapShallowCopy)
+			log.Println("Entering the orderSync state machine. Incoming map: ", incomingOrderToSyncMap)
 
 			for incomingID, incomingOrderToSync := range incomingOrderToSyncMap {
 				if localOrderToSyncMap[incomingID].OrderState == order.SOS_UNKNOWN {
@@ -99,6 +100,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_NONE)
 
 						default:
+							log.Println(incomingID, " told us they have no orders, and we dont care.")
 
 						}
 
@@ -107,6 +109,11 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_REQUEST)
+							log.Println(incomingID, " told us they have a request, and we believe them!")
+
+						case order.SOS_UNCONFIRMED_REQUEST:
+							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
+							log.Println(incomingID, " told us they have a request, and we also have it, so we make the executive decision to move on!")
 
 						default:
 
@@ -117,6 +124,9 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
+
+						case order.SOS_UNCONFIRMED_DELETION:
+							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
 
 						default:
 
@@ -231,6 +241,7 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 					delete(peersThatHaveConfirmedRequest, peerID)
 				}
 			}
+			log.Println("UUUUUHM, DO I HAVE THE RIGHT LIST????? ", fullList)
 			// activePeersList and the peersThatHaveConfirmedRequest map keys should always have the same elements in them
 
 		case acknowledgement := <-iAmAtRequestBarrier:
@@ -239,12 +250,14 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 			if !(isElementInList(ackID, peersThatHaveConfirmedRequest[ownerID])) {
 				peersThatHaveConfirmedRequest[ownerID] = append(peersThatHaveConfirmedRequest[ownerID], ackID)
 			}
+			log.Println(ackID, " acknowledged that ", ownerID, " has an order! Full acklist: ", fullList)
 		}
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range fullList {
 			if containSameElements(fullList, peersThatHaveConfirmedRequest[peerID]) {
 				allAgreeToAddOrder <- peerID
 				peersThatHaveConfirmedRequest[peerID] = make([]string, 0)
+				log.Println("WOW, AN ACTUAL CONFIRMED ORDER! ", peerID, " owns it.")
 			}
 		}
 	}
