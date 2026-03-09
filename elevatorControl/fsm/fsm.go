@@ -139,7 +139,7 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 		case elevator.EB_DoorOpen:
 			openDoor <- true
 
-			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
@@ -149,6 +149,11 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
 					Button: elevator.B_HallDown}
+			}
+			if shouldClearCabButton {
+				servicedRequest <- elevator.ButtonEvent{
+					Floor:  nextState.Floor,
+					Button: elevator.B_Cab}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
@@ -185,7 +190,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 		if requests.ShouldStop(nextState) {
 			changeMotorDirection <- elevator.D_Stop
 			openDoor <- true
-			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
