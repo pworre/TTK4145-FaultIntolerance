@@ -462,7 +462,8 @@ func MapCopy(oldMap map[string]order.Order) map[string]order.Order {
 	return newMap
 }
 
-func updateOrderStateInMap(theMap map[string]order.Order, key string, state order.SyncOrderState) map[string]order.Order{
-	currentOrder := theMap[key]
-	theMap[key] = order.NewOrder(key, currentOrder.OrderFloor, currentOrder.OrderType, state)
+func updateOrderStateInMap(mapToUpdate map[string]order.Order, key string, state order.SyncOrderState) map[string]order.Order{
+	currentOrder := mapToUpdate[key]
+	mapToUpdate[key] = order.NewOrder(key, currentOrder.OrderFloor, currentOrder.OrderType, state)
+	return mapToUpdate
 }
