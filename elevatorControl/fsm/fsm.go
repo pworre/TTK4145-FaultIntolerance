@@ -58,8 +58,8 @@ func StateMachineLoop(startFloor int,
 		case <-obstructionTimeout:
 			log.Printf("OBSSSSSSS????")
 			newState = OnObstructionTimeout(thisElevator, keepObstructed)
-		case <-obstructionEvent:
-			log.Printf("SHOULD DEFINITELY NOT BE IT????")
+		case isObstructed := <-obstructionEvent:
+			log.Printf("!!! OBSTRUCTION EVENT: %v !!!", isObstructed)
 			newState = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
 		}
 
@@ -247,6 +247,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 	return nextState
 }
 
+/*
 func OnObstructionTimeout(currentState elevator.Elevator,
 	keepObstructed chan bool) elevator.Elevator { // peersRx_state chan peers.PeerUpdate) elevator.Elevator {
 
@@ -261,24 +262,27 @@ func OnObstructionTimeout(currentState elevator.Elevator,
 		} else {
 			keepObstructed <- true
 		}
-		*/
+		
 		keepObstructed <- true
 	}
 
 	// Return transformed state
 	return nextState
+}*/
+
+func OnObstructionTimeout(currentState elevator.Elevator,
+	keepObstructed chan bool) elevator.Elevator {
+	return currentState
 }
 
 func OnObstructionEvent(currentState elevator.Elevator,
 	keepDoorOpen chan bool, keepObstructed chan bool) elevator.Elevator {
 	nextState := currentState
 
-	switch nextState.Behaviour {
-
-	case elevator.EB_DoorOpen:
+	if nextState.Behaviour == elevator.EB_DoorOpen  && isObstructed{
 		keepDoorOpen <- true
 		keepObstructed <- true
-
 	}
+
 	return nextState
 }
