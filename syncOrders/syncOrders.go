@@ -168,12 +168,12 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			case orderToAdd := <-confirmedRequest:
 				//log.Printf("GUYS THERE IS A CONFIRMED ORDER")
-				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[myID]) {
+				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[orderToAdd.PeerID]) {
 					if isHallOrder(orderToAdd) {
 						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
 					}
 					if isCabOrder(orderToAdd) {
-						ordersConfirmed_CAB[myID] = append(ordersConfirmed_CAB[myID], orderToAdd)
+						ordersConfirmed_CAB[orderToAdd.PeerID] = append(ordersConfirmed_CAB[orderToAdd.PeerID], orderToAdd)
 					}
 
 					// ? Think about this internal scope setlights and tx, same below

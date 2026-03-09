@@ -118,7 +118,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_REQUEST)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_REQUEST)
 
 							// Need a second barrier, also for the unconfirmation......
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
@@ -140,7 +140,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
 
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
@@ -159,7 +159,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_REQUEST:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
 							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						case order.SOS_CONFIRMED_REQUEST:
@@ -175,7 +175,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
+							localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						case order.SOS_CONFIRMED_DELETION:
@@ -192,21 +192,21 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			// Add confirmed order, turn on lights
 			// ! Double-check that the order has state completed
 			confirmedRequest <- localOrderToSyncMap[peerThatCanAddOrder]
-			updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
+			localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
 
 		case peerThatCanDeleteOrder := <-allAgreeToDeleteOrder:
 			// Remove completed order, turn off lights
 			// ! Double-check that the order has state completed
 			confirmedDeletion <- localOrderToSyncMap[peerThatCanDeleteOrder]
-			updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
+			localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
 
 		case peerThatCanMoveToConfirmRequest := <-allHaveUnconfirmedRequest:
-			updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmRequest, order.SOS_CONFIRMED_REQUEST)
+			localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmRequest, order.SOS_CONFIRMED_REQUEST)
 			iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirmRequest, ackID: myID}
 			log.Println(peerThatCanMoveToConfirmRequest, "has an order that is unconfirmed for everyone, so we make the executive decision to move on!")
 
 		case peerThatCanMoveToConfirmDeletion := <-allHaveUnconfirmedDeletion:
-			updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmDeletion, order.SOS_CONFIRMED_DELETION)
+			localOrderToSyncMap = updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmDeletion, order.SOS_CONFIRMED_DELETION)
 			iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirmDeletion, ackID: myID}
 
 		}
@@ -462,7 +462,7 @@ func MapCopy(oldMap map[string]order.Order) map[string]order.Order {
 	return newMap
 }
 
-func updateOrderStateInMap(theMap map[string]order.Order, key string, state order.SyncOrderState) {
+func updateOrderStateInMap(theMap map[string]order.Order, key string, state order.SyncOrderState) map[string]order.Order{
 	currentOrder := theMap[key]
 	theMap[key] = order.NewOrder(key, currentOrder.OrderFloor, currentOrder.OrderType, state)
 }
