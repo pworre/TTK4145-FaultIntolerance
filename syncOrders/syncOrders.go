@@ -90,14 +90,14 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	networkRx := make(chan []byte, 1024)
 	networkTx := make(chan []byte, 1024)
 
-	// Not used yet, but could possibly be used for networkDisconnect instead of current solution
-	transmitEnable := make(chan bool)
+	// Not used yet, but could possibly be used for networkDisconnect instead of current solution, in that case function must be rewritten
+	//transmitEnable := make(chan bool)
 
 	updateTransmitMessage := make(chan OrderNetworkMsg, 1024)
 
 	go bcast.Transmitter(G_BCAST_PORT, networkTx)
 	go bcast.Receiver(G_BCAST_PORT, networkRx)
-	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage, transmitEnable)
+	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage)
 
 	// TODO: Check if necessary to make deep copies of the peerUpdates
 	go peersUpdateRepeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
@@ -322,7 +322,7 @@ func peersUpdateRepeater(chIn <-chan peers.PeerUpdate, chOut1 chan peers.PeerUpd
 
 }
 
-func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitMessage chan OrderNetworkMsg, transmitEnable chan bool) {
+func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitMessage chan OrderNetworkMsg) {
 	orderTransmitMessage := OrderNetworkMsg{PeerID: myID}
 	enable := true
 
@@ -331,16 +331,17 @@ func orderMessageTransmitter(myID string, networkTx chan []byte, updateTransmitM
 
 	for {
 		select {
-		case enable = <-transmitEnable:
 		case proposedMessage := <-updateTransmitMessage:
 			if !reflect.DeepEqual(proposedMessage, orderTransmitMessage) {
 				orderTransmitMessage = proposedMessage
 				enable = true
 			}
 		case <-ticker.C:
+			enable = true
 		}
 		if enable {
 			networkTx <- Encode(orderTransmitMessage)
+			log.Println("SENDT AVGÅRDE! ", orderTransmitMessage)
 			enable = false
 			//log.Println("I WANT TO SEND!")
 		}
