@@ -112,6 +112,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_UNCONFIRMED_REQUEST:
 
+						iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+
 						log.Printf("Peer %s sees UNCONFIRMED from %s\n", myID, incomingID)
 
 						switch localOrderToSyncMap[incomingID].OrderState {
@@ -134,6 +136,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_UNCONFIRMED_DELETION:
 
+						iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
+
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
@@ -151,6 +155,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_CONFIRMED_REQUEST:
 						//incomingConfirmedRequest(incomingOrderToSync.PeerID)
+						iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_REQUEST:
@@ -166,6 +171,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_CONFIRMED_DELETION:
 						//incomingConfirmedDeletion(incomingOrderToSync.PeerID)
+						iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: incomingID}
 
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_UNCONFIRMED_DELETION:
