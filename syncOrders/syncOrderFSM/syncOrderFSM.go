@@ -245,6 +245,10 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 					delete(peersThatHaveConfirmedRequest, peerID)
 				}
 			}
+
+			// We are also one of the peers that must possibly acknowledge
+			peersThatHaveConfirmedRequest[myID] = []string{}
+
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT LIST????? ", fullList)
 			// activePeersList and the peersThatHaveConfirmedRequest map keys should always have the same elements in them
 
