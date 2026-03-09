@@ -235,23 +235,8 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
-			if shouldClearUpButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_HallUp}
-			}
-			if shouldClearDownButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_HallDown}
-			}
-			if shouldClearCabButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_Cab}
-			}
-			nextState = requests.ClearAtCurrentFloor(nextState)
+
+			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
 			//setLights <- nextState.Requests
