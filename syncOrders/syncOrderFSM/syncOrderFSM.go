@@ -78,7 +78,6 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			}
 			clearAllConfirmedOrders <- true
 
-			// !OBS! Debugging!
 			//<-waitForReconnection // Blocks and does nothing until we are reconnected or restart
 
 		case incomingOrderToSyncMessage := <-newOrderStateReceival:
