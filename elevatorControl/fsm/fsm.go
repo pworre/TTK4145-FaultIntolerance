@@ -37,12 +37,14 @@ func StateMachineLoop(startFloor int,
 			thisElevator = OnNewAssignment(thisElevator, newAssignment, changeMotorDirection, servicedRequest, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:
+			log.Printf("SOMEONE LIKES THE FLOOR????")
 			thisElevator = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, changeMotorDirection, servicedRequest, openDoor, stillActive)
 
 		case <-doorTimeout:
+			log.Printf("WTF DOOR????")
 			thisElevator = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, servicedRequest, closeDoor, keepDoorOpen, stillActive)
 		case <-inactivityTimeout:
-
+			log.Printf("ARE YOU KIDDING ME????")
 			/* Debugging
 			if len(peersRx_state) > 1 {
 				os.Exit(2)
@@ -53,8 +55,10 @@ func StateMachineLoop(startFloor int,
 			stillActive <- true
 			// ObstructionTimeout probably unneccesary, only need event, we must wait for obstruction to clear anyway
 		case <-obstructionTimeout:
+			log.Printf("OBSSSSSSS????")
 			thisElevator = OnObstructionTimeout(thisElevator, keepObstructed)
 		case <-obstructionEvent:
+			log.Printf("SHOULD DEFINITELY NOT BE IT????")
 			thisElevator = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
 		}
 

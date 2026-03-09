@@ -239,9 +239,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case newElevatorState := <-localStateChange:
 				allElevatorStates[myID] = newElevatorState
-				log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
+				//log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
-				log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
+				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case msgReceivedBytes := <-networkRx:
