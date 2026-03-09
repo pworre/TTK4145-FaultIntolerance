@@ -112,15 +112,19 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_UNCONFIRMED_REQUEST:
 
+						log.Printf("Peer %s sees UNCONFIRMED from %s\n", myID, incomingID)
+
 						switch localOrderToSyncMap[incomingID].OrderState {
 						case order.SOS_NONE:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_REQUEST)
 
 							// Need a second barrier, also for the unconfirmation......
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
 
@@ -134,9 +138,11 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						case order.SOS_NONE:
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
 
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						case order.SOS_UNCONFIRMED_DELETION:
+							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s\n", myID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
 
 						default:
