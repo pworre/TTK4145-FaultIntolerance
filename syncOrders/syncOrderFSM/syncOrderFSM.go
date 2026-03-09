@@ -232,7 +232,8 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 		case newPeerUpdateShallowCopy := <-peerUpdateInRequestBarrierStateCounter:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			activePeersList = newPeerUpdate.Peers
-			fullList = append(activePeersList, myID)
+			fullList = append([]string{}, activePeersList...)
+			fullList = append(fullList, myID)
 			// Update map
 			if newPeerUpdate.New != "" {
 				if !(isKeyInMap(newPeerUpdate.New, peersThatHaveConfirmedRequest)) {
@@ -277,7 +278,8 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 		case newPeerUpdateShallowCopy := <-peerUpdateInDeletionBarrierStateCounter:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			activePeersList = newPeerUpdate.Peers
-			fullList = append(activePeersList, myID)
+			fullList = append([]string{}, activePeersList...)
+			fullList = append(fullList, myID)
 			// Update map
 			if newPeerUpdate.New != "" {
 				if !(isKeyInMap(newPeerUpdate.New, peersThatHaveConfirmedDelete)) {
@@ -300,7 +302,7 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 		}
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range fullList {
-			if containSameElements(append(fullList, myID), peersThatHaveConfirmedDelete[peerID]) {
+			if containSameElements(fullList, peersThatHaveConfirmedDelete[peerID]) {
 				allAgreeToDeleteOrder <- peerID
 				peersThatHaveConfirmedDelete[peerID] = make([]string, 0)
 			}
