@@ -257,6 +257,11 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 			}
 			log.Println(ackID, " acknowledged that ", ownerID, " has an order! Full acklist: ", fullList)
 		}
+		log.Println(
+			"Barrier check:",
+			"fullList:", fullList,
+			"acks:", peersThatHaveConfirmedRequest,
+		)
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range fullList {
 			if containSameElements(fullList, peersThatHaveConfirmedRequest[peerID]) {
