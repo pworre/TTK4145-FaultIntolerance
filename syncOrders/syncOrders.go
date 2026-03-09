@@ -83,6 +83,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	peerUpdateInSyncOrdersFSM := make(chan peers.PeerUpdate, 1024)
 	peerUpdateInRequestBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
 	peerUpdateInDeletionBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
+	peerUpdateInUnconfirmedRequestBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
+	peerUpdateInUnconfirmedDeletionBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
 	//waitForReconnection := make(chan peers.PeerUpdate)
 
 	// TODO: End channels
@@ -100,9 +102,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	go orderMessageTransmitter(myID, networkTx, updateTransmitMessage)
 
 	// TODO: Check if necessary to make deep copies of the peerUpdates
-	go peersUpdateRepeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
+	go peersUpdateRepeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, peerUpdateInUnconfirmedRequestBarrierStateCounter, peerUpdateInUnconfirmedDeletionBarrierStateCounter)
 
-	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter)
+	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, peerUpdateInUnconfirmedRequestBarrierStateCounter, peerUpdateInUnconfirmedDeletionBarrierStateCounter)
 
 	// ! VERY IMPORTANT ! When new peer initializes and joins, it should set itself as none and everyone else as unknown
 	// ! Is this handled by default, or must we explicitly enforce this?
@@ -311,12 +313,14 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	}
 }
 
-func peersUpdateRepeater(chIn <-chan peers.PeerUpdate, chOut1 chan peers.PeerUpdate, chOut2 chan peers.PeerUpdate, chOut3 chan peers.PeerUpdate, chOut4 chan peers.PeerUpdate) {
+func peersUpdateRepeater(chIn <-chan peers.PeerUpdate, chOut1 chan peers.PeerUpdate, chOut2 chan peers.PeerUpdate, chOut3 chan peers.PeerUpdate, chOut4 chan peers.PeerUpdate, chOut5 chan peers.PeerUpdate, chOut6 chan peers.PeerUpdate) {
 	for update := range chIn {
 		chOut1 <- peers.PeerUpdateClone(update)
 		chOut2 <- peers.PeerUpdateClone(update)
 		chOut3 <- peers.PeerUpdateClone(update)
 		chOut4 <- peers.PeerUpdateClone(update)
+		chOut5 <- peers.PeerUpdateClone(update)
+		chOut6 <- peers.PeerUpdateClone(update)
 		log.Println("SUCCESSFUL CLONE!!!")
 	}
 
