@@ -127,6 +127,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 							log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
@@ -147,6 +148,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_UNCONFIRMED_DELETION:
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
@@ -164,6 +166,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_REQUEST:
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						default:
@@ -180,6 +183,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_CONFIRMED_DELETION:
+							localOrderToSyncMap[key_ID] = incomingOrderToSync
 							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						default:
@@ -286,7 +290,11 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 			}
 
 			// We are also one of the peers that must possibly acknowledge
-			peersThatHaveConfirmedRequest[myID] = []string{}
+			//peersThatHaveConfirmedRequest[myID] = []string{}
+			// ! WHOOPSIE ! This is resetting the acknowledgment list at every peer update
+			if !isKeyInMap(myID, peersThatHaveConfirmedRequest) {
+				peersThatHaveConfirmedRequest[myID] = []string{}
+			}
 
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT LIST????? ", fullList)
 			// activePeersList and the peersThatHaveConfirmedRequest map keys should always have the same elements in them

@@ -9,6 +9,7 @@ import (
 	"networkDriver/bcast"
 	"networkDriver/peers"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"syncOrders/order"
 	"syncOrders/syncOrderFSM"
@@ -60,6 +61,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
+const debug_sync = true
 
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
@@ -124,6 +126,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	allElevatorStates := make(map[string]elevator.Elevator)
 	allElevatorStates[myID] = elevator.NewStartElevator(startFloor)
+
+	latestLocalElevatorState := elevator.NewStartElevator(startFloor)
 
 	for {
 		select {
@@ -249,6 +253,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case newElevatorState := <-localStateChange:
+				latestLocalElevatorState = newElevatorState
 				allElevatorStates[myID] = newElevatorState
 				//log.Println("OMG GUYS THERE WAS A LOCAL STATE CHANGE AND I WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
@@ -287,7 +292,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					newOrderSyncMap := order.MapClone(msgReceived.OrderToSyncMap)
 					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: newOrderSyncMap, TransmittedPeerID: msgReceived.PeerID}
 
-					allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
+					// Merging elevator state and ensuring our state is newest from ourself known state
+					for id, state := range msgReceived.AllElevatorStates {
+						allElevatorStates[id] = state
+					}
+					allElevatorStates[myID] = latestLocalElevatorState
+					
+					// allElevatorStates = order.MapClone(msgReceived.AllElevatorStates) // Fine I guess? Your own states should match up
 
 					// If an elevator just joins the network, it accepts the first received lists of confirmed orders
 					if hasNoOrders(ordersConfirmed_HALL, ordersConfirmed_CAB) {
@@ -467,6 +478,14 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		hallRequestAssigner.AssignOrders(
 			hallRequestAssigner.Encode(hraInput)))
 	newAssignment := newAssignmentMap[myID]
+
+	if debug_sync {
+		log.Printf("HRA input for hall request: %+v\n", hraInput.HallRequests)
+		log.Printf("HRA states=%+v\n", hraInput.States)
+		log.Printf("HRA assignemnt map: %+v\n", newAssignmentMap)
+		log.Printf("HRA assignment for %s = %+v\n", myID, newAssignment)
+	}
+
 	assignEvent <- newAssignment
 }
 
