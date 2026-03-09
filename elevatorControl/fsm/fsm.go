@@ -251,7 +251,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 					Floor:  nextState.Floor,
 					Button: elevator.B_Cab}
 			}
-			//nextState = requests.ClearAtCurrentFloor(nextState)
+			nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 			// ! No setLights!!!
 			//setLights <- nextState.Requests
