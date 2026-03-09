@@ -220,18 +220,13 @@ func OnDoorTimeout(currentState elevator.Elevator,
 	nextState := currentState
 
 	// State transformation and action outputs via message passing to main
-	switch nextState.Behaviour {
-	case elevator.EB_DoorOpen:
+	if nextState.Behaviour == elevator.EB_DoorOpen {
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
 
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-
-			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
-			// ! No setLights!!!
-			//setLights <- nextState.Requests
 
 		case elevator.EB_Moving:
 			closeDoor <- true
@@ -270,6 +265,7 @@ func OnObstructionTimeout(currentState elevator.Elevator,
 	return nextState
 }*/
 
+// ! revurder !
 func OnObstructionTimeout(currentState elevator.Elevator,
 	keepObstructed chan bool) elevator.Elevator {
 	return currentState
@@ -279,7 +275,7 @@ func OnObstructionEvent(currentState elevator.Elevator, isObstructed bool,
 	keepDoorOpen chan bool, keepObstructed chan bool) elevator.Elevator {
 	nextState := currentState
 
-	if nextState.Behaviour == elevator.EB_DoorOpen  && isObstructed{
+	if nextState.Behaviour == elevator.EB_DoorOpen  && isObstructed {
 		keepDoorOpen <- true
 		keepObstructed <- true
 	}
