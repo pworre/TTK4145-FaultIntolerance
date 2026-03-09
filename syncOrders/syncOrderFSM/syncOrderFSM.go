@@ -112,9 +112,11 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
-							iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
-							log.Println(incomingID, " told us they have a request, and we also have it, so we make the executive decision to move on!")
+							if incomingID != myID {
+								updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_REQUEST)
+								iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+								log.Println(incomingID, " told us they have a request, and we also have it, so we make the executive decision to move on!")
+							}
 
 						default:
 
@@ -127,8 +129,10 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_UNCONFIRMED_DELETION)
 
 						case order.SOS_UNCONFIRMED_DELETION:
-							updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
-							iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							if incomingID != myID {
+								updateOrderStateInMap(localOrderToSyncMap, incomingID, order.SOS_CONFIRMED_DELETION)
+								iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: incomingID, ackID: myID}
+							}
 
 						default:
 
@@ -259,7 +263,7 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 			if !(isElementInList(ackID, peersThatHaveConfirmedRequest[ownerID])) {
 				peersThatHaveConfirmedRequest[ownerID] = append(peersThatHaveConfirmedRequest[ownerID], ackID)
 			}
-			log.Println(ackID, " acknowledged that ", ownerID, " has an order! Full acklist: ", fullList)
+			log.Println(ackID, " acknowledged that ", ownerID, " has an order! Full acklist: ", peersThatHaveConfirmedRequest[ownerID])
 		}
 		log.Println(
 			"Barrier check:",
