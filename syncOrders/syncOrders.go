@@ -174,6 +174,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 			case orderToAdd := <-confirmedRequest:
 				//log.Printf("GUYS THERE IS A CONFIRMED ORDER")
+				log.Printf("CONFIRMED ORDER ADDED: %+v\n", orderToAdd)
 				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[orderToAdd.PeerID]) {
 					if isHallOrder(orderToAdd) {
 						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
@@ -316,7 +317,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 		}
 		SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
-
+		log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
 		/// !END CHECKOUT!
 
 	}

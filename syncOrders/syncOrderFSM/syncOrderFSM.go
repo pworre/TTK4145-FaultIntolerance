@@ -192,6 +192,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 		case peerThatCanAddOrder := <-allAgreeToAddOrder:
 			// Add confirmed order, turn on lights
 			// ! Double-check that the order has state completed
+			log.Printf("FSM adding confirmedRequest %+v\n", localOrderToSyncMap[peerThatCanAddOrder])
 			confirmedRequest <- localOrderToSyncMap[peerThatCanAddOrder]
 			localOrderToSyncMap[peerThatCanAddOrder] = updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
 
