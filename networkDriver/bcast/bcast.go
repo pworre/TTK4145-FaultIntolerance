@@ -8,7 +8,7 @@ import (
 	"reflect"
 )
 
-const bufSize = 1024
+const bufSize = 8 * 1024
 
 // Transmitter takes in port, and one or multiple channels for transmitting.
 // Encodes received values from `chans` into type-tagged JSON, then broadcasts
