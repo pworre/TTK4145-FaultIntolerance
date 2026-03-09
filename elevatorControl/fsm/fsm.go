@@ -25,24 +25,25 @@ func StateMachineLoop(startFloor int,
 	stillActive chan bool, localStateChange chan elevator.Elevator) { // peersRx_status chan peers.PeerUpdate) {
 
 	thisElevator := elevator.NewStartElevator(startFloor)
+	var newState elevator.Elevator
 
 	for {
 		select {
 		case buttonPressed := <-buttonEvent:
 			log.Printf("BRO SOMEONE JUST PRESSED A BUTTON")
-			thisElevator = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, newRequest)
+			newState = OnRequestButtonPress(thisElevator, buttonPressed.Floor, buttonPressed.Button, keepDoorOpen, stillActive, newRequest)
 
 		case newAssignment := <-assignEvent:
 			log.Printf("OMG I JUST GOT AN ORDER!")
-			thisElevator = OnNewAssignment(thisElevator, newAssignment, changeMotorDirection, servicedRequest, openDoor, keepDoorOpen, stillActive)
+			newState = OnNewAssignment(thisElevator, newAssignment, changeMotorDirection, servicedRequest, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:
 			log.Printf("SOMEONE LIKES THE FLOOR????")
-			thisElevator = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, changeMotorDirection, servicedRequest, openDoor, stillActive)
+			newState = OnFloorArrival(thisElevator, newFloor, setFloorIndicator, changeMotorDirection, servicedRequest, openDoor, stillActive)
 
 		case <-doorTimeout:
 			log.Printf("WTF DOOR????")
-			thisElevator = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, servicedRequest, closeDoor, keepDoorOpen, stillActive)
+			newState = OnDoorTimeout(thisElevator, setLights, changeMotorDirection, servicedRequest, closeDoor, keepDoorOpen, stillActive)
 		case <-inactivityTimeout:
 			log.Printf("ARE YOU KIDDING ME????")
 			/* Debugging
@@ -56,14 +57,17 @@ func StateMachineLoop(startFloor int,
 			// ObstructionTimeout probably unneccesary, only need event, we must wait for obstruction to clear anyway
 		case <-obstructionTimeout:
 			log.Printf("OBSSSSSSS????")
-			thisElevator = OnObstructionTimeout(thisElevator, keepObstructed)
+			newState = OnObstructionTimeout(thisElevator, keepObstructed)
 		case <-obstructionEvent:
 			log.Printf("SHOULD DEFINITELY NOT BE IT????")
-			thisElevator = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
+			newState = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
 		}
 
 		// Notify elevators on network that we have done something
-		localStateChange <- thisElevator
+		if newState != thisElevator {
+			localStateChange <- newState
+			thisElevator = newState
+		}
 	}
 }
 
