@@ -67,6 +67,9 @@ const G_BCAST_PORT = 25532
 func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]bool, newRequest <-chan elevator.ButtonEvent, servicedRequest <-chan elevator.ButtonEvent, cfg config.Config, peerUpdate <-chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 	myID := cfg.ID
 
+
+	// TODO: Not initialize the ordersyncmap with an actual order, since it vill be completed... Leave empty until assigned
+
 	// TODO: Random channels, sort later
 
 	networkDisconnect := make(chan bool)

@@ -123,9 +123,11 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							// Need a second barrier, also for the unconfirmation......
 							select {
 							case peerThatCanMoveToConfirm := <-allHaveUnconfirmedRequest:
-								updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirm, order.SOS_CONFIRMED_REQUEST)
-								iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirm, ackID: myID}
-								log.Println(incomingID, "has an order that is unconfirmed for everyone, so we make the executive decision to move on!")
+								if peerThatCanMoveToConfirm == incomingID {
+									updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirm, order.SOS_CONFIRMED_REQUEST)
+									iAmAtRequestBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirm, ackID: myID}
+									log.Println(incomingID, "has an order that is unconfirmed for everyone, so we make the executive decision to move on!")
+								}
 							default:
 							}
 
@@ -144,8 +146,10 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 							select {
 							case peerThatCanMoveToConfirm := <-allHaveUnconfirmedDeletion:
-								updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirm, order.SOS_CONFIRMED_DELETION)
-								iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirm, ackID: myID}
+								if peerThatCanMoveToConfirm == incomingID {
+									updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirm, order.SOS_CONFIRMED_DELETION)
+									iAmAtDeleteBarrier <- acknowledgeBarrier{ownerID: peerThatCanMoveToConfirm, ackID: myID}
+								}
 							default:
 							}
 
