@@ -60,7 +60,7 @@ func StateMachineLoop(startFloor int,
 			newState = OnObstructionTimeout(thisElevator, keepObstructed)
 		case isObstructed := <-obstructionEvent:
 			log.Printf("!!! OBSTRUCTION EVENT: %v !!!", isObstructed)
-			newState = OnObstructionEvent(thisElevator, keepDoorOpen, keepObstructed)
+			newState = OnObstructionEvent(thisElevator, isObstructed, keepDoorOpen, keepObstructed)
 		}
 
 		// Notify elevators on network that we have done something
@@ -275,7 +275,7 @@ func OnObstructionTimeout(currentState elevator.Elevator,
 	return currentState
 }
 
-func OnObstructionEvent(currentState elevator.Elevator,
+func OnObstructionEvent(currentState elevator.Elevator, isObstructed bool,
 	keepDoorOpen chan bool, keepObstructed chan bool) elevator.Elevator {
 	nextState := currentState
 
