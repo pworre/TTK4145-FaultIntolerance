@@ -55,7 +55,7 @@ func main() {
 	obstructionTimeout := make(chan bool)
 
 	// Channels for orders
-	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool)
+	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 1024)
 
 	newRequest := make(chan elevator.ButtonEvent)
 	servicedRequest := make(chan elevator.ButtonEvent)
@@ -68,7 +68,7 @@ func main() {
 	peersTx_enable := make(chan bool)
 	peersRx_status := make(chan peers.PeerUpdate, 1024)
 
-	// - - - - - - GoRoutines - - - - - -
+	// - - - -F - - GoRoutines - - - - - -
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peersRx_status)
 

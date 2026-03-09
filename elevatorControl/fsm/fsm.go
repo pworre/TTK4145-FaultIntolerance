@@ -83,6 +83,10 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
 		if requests.ShouldClearImmediately(nextState, btnFloor, btnType) {
+			newRequest <- elevator.ButtonEvent{
+				Floor:  btnFloor,
+				Button: btnType,
+			}
 			keepDoorOpen <- true
 			stillActive <- true
 		} else {
@@ -172,6 +176,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 
 	// Copy of current state
 	nextState := currentState
+	nextState.Direction = elevator.D_Stop
 
 	// State transformation and action outputs via message passing to main
 	nextState.Floor = newFloor

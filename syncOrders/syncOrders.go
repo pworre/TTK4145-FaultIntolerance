@@ -194,6 +194,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// Reached Barrier state, we can now safely do side effects
 					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
 					setLights <- buttonsToLight
+
+					SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
+					log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
 				}
 
 			case orderToDelete := <-confirmedDeletion:
@@ -243,6 +246,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					setLights <- buttonsToLight
 				}
 
+				SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
+				log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
+
 				/// !TO CHECK OUT! Where does this logic belong?
 
 			// HMMMMMMM
@@ -258,6 +264,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, orderToSyncMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
+				SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
+				log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
 			// ! This logic can maybe be moved to syncOrderFSM? Probably not, that mixes responsibilities, but so does keeping it here...
 			case msgReceivedBytes := <-networkRx:
 				//log.Printf("OMG I JUST RECEIVED A MESSAGE!")
@@ -326,8 +334,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			*/
 
 		}
-		SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
-		log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
+		
 		/// !END CHECKOUT!
 
 	}
