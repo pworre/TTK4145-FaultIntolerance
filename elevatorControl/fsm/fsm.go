@@ -112,13 +112,9 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	nextState := currentState
 	nextState.Requests = assignment
 
-	// ! DEBUG PRINTING
-	if debug {
-		if nextState.Behaviour == elevator.EB_Idle {
-			//log.Print("Elevator is idle")
-		} else {
-			//log.Print("Elevator is not idle")
-		}
+	if nextState.Behaviour == elevator.EB_DoorOpen {
+		nextState = requests.ClearAtCurrentFloor(nextState)
+		return nextState
 	}
 
 	// State transformation and action outputs via message passing
@@ -140,6 +136,7 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 			openDoor <- true
 
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+			
 			if shouldClearUpButton {
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
@@ -164,11 +161,6 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 		case elevator.EB_Idle:
 		}
 	}
-
-	// ! All setLights should now be moved to syncorders
-	//setLights <- nextState.Requests
-
-	// Return transformed state
 	return nextState
 }
 
