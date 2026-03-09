@@ -31,6 +31,15 @@ func NewOrder(ID string, floor int, button elevator.Button, orderState SyncOrder
 	}
 }
 
+func NewEmptyOrder(id string) Order {
+	return Order{
+		PeerID:     id,
+		OrderFloor: -1,
+		OrderType:  elevator.Button(-1),
+		OrderState: SOS_NONE,
+	}
+}
+
 func MapClone[M ~map[string]T, T any](theMap M) M {
 	clone := make(M, len(theMap))
 	for key, val := range theMap {

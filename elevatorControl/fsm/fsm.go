@@ -195,6 +195,11 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
 					Button: elevator.B_HallDown}
+			} 
+			if shouldClearCabButton{
+				servicedRequest <- elevator.ButtonEvent{
+					Floor:  nextState.Floor,
+					Button: elevator.B_Cab}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
@@ -225,7 +230,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-			shouldClearUpButton, shouldClearDownButton := requests.WhichButtonsShouldClear(nextState)
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
@@ -235,6 +240,11 @@ func OnDoorTimeout(currentState elevator.Elevator,
 				servicedRequest <- elevator.ButtonEvent{
 					Floor:  nextState.Floor,
 					Button: elevator.B_HallDown}
+			}
+			if shouldClearCabButton {
+				servicedRequest <- elevator.ButtonEvent{
+					Floor:  nextState.Floor,
+					Button: elevator.B_Cab}
 			}
 			//nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true

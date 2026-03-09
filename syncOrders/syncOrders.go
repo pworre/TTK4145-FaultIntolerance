@@ -154,7 +154,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
 				if !isKeyInMap(myID, orderToSyncMap) {
-					orderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+					orderToSyncMap[myID] = order.NewEmptyOrder(myID)
 				} else if orderToSyncMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case orderToSyncMap[myID] = <-orderSyncBuffer:
@@ -262,9 +262,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						msgReceived.OrderToSyncMap = make(map[string]order.Order)
 						// Here:
 						//for _ , peerID := range activePeersList {
-						//	msgReceived.OrderToSyncMap[peerID] = order.NewOrder(peerID, 0, elevator.B_Cab, order.SOS_NONE) // Maybe UNKNOWN instead????
+						//	msgReceived.OrderToSyncMap[peerID] = order.NewEmptyOrder(myID) // Maybe UNKNOWN instead????
 						//}
-						//msgReceived.OrderToSyncMap[myID] = order.NewOrder(myID, 0, elevator.B_Cab, order.SOS_NONE)
+						//msgReceived.OrderToSyncMap[myID] = order.NewEmptyOrder(myID)
 					}
 					if msgReceived.OrdersConfirmed_CAB == nil {
 						msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)

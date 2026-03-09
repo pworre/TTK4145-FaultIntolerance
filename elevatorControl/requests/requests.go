@@ -102,10 +102,11 @@ func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.
 			(btnType == elevator.B_Cab))
 }
 
-func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool) {
+func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool, bool) {
 
 	shouldClearUpButton := false
 	shouldClearDownButton := false
+	shouldClearCabButton := false
 
 	switch e.Direction {
 	case elevator.D_Up:
@@ -124,8 +125,12 @@ func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool) {
 		shouldClearUpButton = true
 		shouldClearDownButton = true
 	}
+
+	if e.Requests[e.Floor][elevator.B_Cab] {
+		shouldClearCabButton = true
+	}
 	
-	return shouldClearUpButton, shouldClearDownButton
+	return shouldClearUpButton, shouldClearDownButton, shouldClearCabButton
 }
 
 /*
