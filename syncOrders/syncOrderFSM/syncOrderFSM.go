@@ -213,14 +213,16 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 		case peerThatCanAddOrder := <-allAgreeToAddOrder:
 			// Add confirmed order, turn on lights
+			orderToAdd := localOrderToSyncMap[peerThatCanAddOrder]
 			// ! Double-check that the order has state completed
-			log.Printf("FSM adding confirmedRequest %+v\n", localOrderToSyncMap[peerThatCanAddOrder])
-			if localOrderToSyncMap[peerThatCanAddOrder].OrderState == order.SOS_NONE {
-				log.Println("WARNING: FSM attempt to add NONE order to confirmed request list:", localOrderToSyncMap[peerThatCanAddOrder])
+			log.Printf("FSM adding confirmedRequest %+v\n", orderToAdd)
+			if orderToAdd.OrderState != order.SOS_CONFIRMED_REQUEST {
+				log.Println("WARNING: FSM attempt to add a non_CONFIRMED_REQUEST order to confirmed request list:", localOrderToSyncMap[peerThatCanAddOrder])
+				break
 			}
-			confirmedRequest <- localOrderToSyncMap[peerThatCanAddOrder]
+			confirmedRequest <- orderToAdd
 			updateOrderStateInMap(localOrderToSyncMap, peerThatCanAddOrder, order.SOS_NONE)
-
+			newOrderStateTransition <- MapCopy(localOrderToSyncMap)
 			// !!!!!!!!!!!!!!!IMPORTANT!!!!!!!!!!!!!!!
 
 			// ! For some reason, NONE orders are added to be deleted.
@@ -229,15 +231,18 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 		case peerThatCanDeleteOrder := <-allAgreeToDeleteOrder:
 			// Remove completed order, turn off lights
+			orderToDelete := localOrderToSyncMap[peerThatCanDeleteOrder]
 			// ! Double-check that the order has state completed
-			log.Printf("FSM adding confirmedDeletion %+v\n", localOrderToSyncMap[peerThatCanDeleteOrder])
+			log.Printf("FSM adding confirmedDeletion %+v\n", orderToDelete)
 
-			if localOrderToSyncMap[peerThatCanDeleteOrder].OrderState != order.SOS_NONE {
-				confirmedDeletion <- localOrderToSyncMap[peerThatCanDeleteOrder]
-				updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
-			} else {
-				log.Println("WARNING: FSM attempt to add NONE order to confirmed delete list:", localOrderToSyncMap[peerThatCanDeleteOrder], "but we skipped it")
+			if orderToDelete.OrderState != order.SOS_CONFIRMED_DELETION {
+				log.Printf("WARNING: refusing a non-confirmed-to-delete order to be deleted")
+				break
 			}
+
+			confirmedDeletion <- orderToDelete
+			updateOrderStateInMap(localOrderToSyncMap, peerThatCanDeleteOrder, order.SOS_NONE)
+			newOrderStateTransition <- MapCopy(localOrderToSyncMap)
 
 		case peerThatCanMoveToConfirmRequest := <-allHaveUnconfirmedRequest:
 			updateOrderStateInMap(localOrderToSyncMap, peerThatCanMoveToConfirmRequest, order.SOS_CONFIRMED_REQUEST)

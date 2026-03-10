@@ -174,7 +174,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						copyMap[myID] = nextLocalOrder
 
 						newOrderStateReceival <- order.OrderStateMessage{
-							OrderToSyncMap:    order.MapClone(orderToSyncMap),
+							OrderToSyncMap:    normalizeOrderMap(order.MapClone(copyMap)),
 							TransmittedPeerID: myID,
 						}
 					default:
