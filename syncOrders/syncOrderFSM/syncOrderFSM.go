@@ -93,7 +93,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 					continue
 				}
 
-				if localOrderToSyncMap[key_ID].OrderState == order.SOS_UNKNOWN {
+				if localOrder.OrderState == order.SOS_UNKNOWN {
 					localOrderToSyncMap[key_ID] = incomingOrderToSync
 				}
 
