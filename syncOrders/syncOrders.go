@@ -60,7 +60,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
-const debug_sync = false
+const debug_sync = true
 
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
@@ -117,6 +117,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	// MAP for syncronization use
 	orderToSyncMap := make(map[string]order.Order)
+	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
 
 	ordersConfirmed_HALL := make([]order.Order, 0)
 	ordersConfirmed_CAB := make(map[string][]order.Order)
@@ -161,25 +162,39 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
 				//}
 
-				copyMap := order.MapClone(orderToSyncMap)
+				copyMap := normalizeOrderMap(order.MapClone(orderToSyncMap))
+
+				if _, isInMap := copyMap[myID]; !isInMap {
+					copyMap[myID] = order.NewEmptyOrder(myID)
+				}
 
 				if copyMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case nextLocalOrder := <-orderSyncBuffer:
 						copyMap[myID] = nextLocalOrder
 
-						//newOrderStateReceival <- order.OrderStateMessage{
-						//	OrderToSyncMap:    order.MapClone(orderToSyncMap),
-						//	TransmittedPeerID: myID,
-						//}
+						newOrderStateReceival <- order.OrderStateMessage{
+							OrderToSyncMap:    normalizeOrderMap(order.MapClone(copyMap)),
+							TransmittedPeerID: myID,
+						}
 					default:
 					}
 				}
+				orderToSyncMap = copyMap
+
+				if debug_sync {
+					log.Printf("Before tx, orderToSyncMap = ")
+				}
+
 				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, copyMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			case orderToAdd := <-confirmedRequest:
+				if !isValidSyncedOrder(orderToAdd) {
+					log.Printf("Ignoring a confirmedRequest with invalid state: %+v\n", orderToAdd)
+					break
+				}
 				//log.Printf("GUYS THERE IS A CONFIRMED ORDER")
 				//log.Printf("CONFIRMED ORDER ADDED: %+v\n", orderToAdd)
 				if !isAlreadyInConfirmedList(orderToAdd, ordersConfirmed_HALL, ordersConfirmed_CAB[orderToAdd.PeerID]) {
@@ -204,6 +219,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 			case orderToDelete := <-confirmedDeletion:
+				if !isValidSyncedOrder(orderToDelete) {
+					log.Printf("Ignoring a confirmedDeletion with invalid state: %+v\n", orderToDelete)
+					break
+				}
 
 				log.Println("Hello!! I want to delete this order: ", orderToDelete)
 				log.Println("FULL LIST OF CONFIRMED HALLORDERS: ", ordersConfirmed_HALL)
@@ -227,7 +246,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						wasDeleted = true
 					}
 
-					ordersConfirmed_CAB[orderToDelete.PeerID] = newCabList
+					if len(newCabList) == 0 {
+						delete(ordersConfirmed_CAB, orderToDelete.PeerID)
+					} else {
+						ordersConfirmed_CAB[orderToDelete.PeerID] = newCabList
+					}
 
 				} else if isHallOrder(orderToDelete) {
 
@@ -296,7 +319,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// !!!!!!!!!! Can probably comment out!
 					// ! This doesnt make sense?? We should never get nil for these fields?
 					if msgReceived.OrderToSyncMap == nil {
-						log.Println("This is weird??? Try the thing under!")
+						log.Println("Received nil for OrderToSync Map: This is weird??? Try the thing under!")
 						msgReceived.OrderToSyncMap = make(map[string]order.Order)
 						// Here:
 						//for _ , peerID := range activePeersList {
@@ -315,7 +338,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// ! Probably the big mistake!!!!!!!!!
 					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
 
-					newOrderSyncMap := order.MapClone(msgReceived.OrderToSyncMap)
+					newOrderSyncMap := normalizeOrderMap(order.MapClone(msgReceived.OrderToSyncMap))
 					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: newOrderSyncMap, TransmittedPeerID: msgReceived.PeerID}
 
 					// Merging elevator state and ensuring our state is newest from ourself known state
@@ -639,4 +662,50 @@ func isElementInList(elem string, list []string) bool {
 func isKeyInMap[T any](key string, theMap map[string]T) bool {
 	_, isInMap := theMap[key]
 	return isInMap
+}
+
+func isValidSyncedOrder(ord order.Order) bool {
+	if ord.OrderState == order.SOS_NONE {
+		return false
+	}
+	if ord.OrderFloor < 0 || ord.OrderFloor >= elevator.N_FLOORS {
+		return false
+	}
+	if ord.OrderType < 0 || ord.OrderType >= elevator.N_BUTTONS {
+		return false
+	}
+	return true
+}
+
+func normalizeOrderMap(orderMap map[string]order.Order, ids ...string) map[string]order.Order {
+	if orderMap == nil {
+		orderMap = make(map[string]order.Order)
+	}
+	
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, isInMap := orderMap[id]; !isInMap {
+			orderMap[id] = order.NewEmptyOrder(id)
+		}
+	}
+
+	for id, ord := range orderMap {
+		if ord.PeerID == "" { 
+			orderMap[id] = order.NewEmptyOrder(id)
+			continue
+		}
+		if ord.OrderState == order.SOS_NONE {
+			orderMap[id] = order.NewEmptyOrder(id)
+			continue
+		}
+
+		// Checking if map-key is consistent with order.PeerID
+		if ord.PeerID != id {
+			ord.PeerID = id
+			orderMap[id] = ord
+		}
+	}
+	return orderMap
 }
