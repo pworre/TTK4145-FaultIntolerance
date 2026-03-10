@@ -164,6 +164,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				copyMap := normalizeOrderMap(order.MapClone(orderToSyncMap))
 
+				if _, isInMap := copyMap[myID]; !isInMap {
+					copyMap[myID] = order.NewEmptyOrder(myID)
+				}
+
 				if copyMap[myID].OrderState == order.SOS_NONE {
 					select {
 					case nextLocalOrder := <-orderSyncBuffer:
@@ -176,6 +180,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					default:
 					}
 				}
+				orderToSyncMap = copyMap
+				
 				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, copyMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
