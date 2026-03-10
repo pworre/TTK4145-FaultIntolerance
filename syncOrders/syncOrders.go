@@ -181,7 +181,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					}
 				}
 				orderToSyncMap = copyMap
-				
+
+				if debug_sync {
+					log.Printf("Before tx, orderToSyncMap = ")
+				}
+
 				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, copyMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")

@@ -299,8 +299,9 @@ func isKeyInMap[T any](key string, theMap map[string]T) bool {
 // ! peerUpdate should prob be own channel
 func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCounter chan peers.PeerUpdate, iAmAtRequestBarrier chan acknowledgeBarrier, allAgreeToAddOrder chan string) {
 	activePeersList := make([]string, 0)
-	fullList := make([]string, 0)
+	fullList := []string{myID}
 	peersThatHaveConfirmedRequest := make(map[string][]string)
+	peersThatHaveConfirmedRequest[myID] = []string{}
 	log.Println("Entered the requestBarrierStateCounter!!!")
 
 	for {
@@ -359,8 +360,10 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 
 func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtDeleteBarrier chan acknowledgeBarrier, allAgreeToDeleteOrder chan string) {
 	activePeersList := make([]string, 0)
-	fullList := make([]string, 0)
+	fullList := []string{myID}
 	peersThatHaveConfirmedDelete := make(map[string][]string)
+	peersThatHaveConfirmedDelete[myID] = []string{}
+	log.Println("Entered the deletionBarrierStateCounter!!!")
 
 	for {
 		select {
@@ -405,8 +408,9 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 
 func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedRequestBarrierStateCounter chan peers.PeerUpdate, iAmAtUnconfirmedRequestBarrier chan acknowledgeBarrier, allHaveUnconfirmedRequest chan string) {
 	activePeersList := make([]string, 0)
-	fullList := make([]string, 0)
+	fullList := []string{myID}
 	peersThatHaveUnconfirmedRequest := make(map[string][]string)
+	peersThatHaveUnconfirmedRequest[myID] = []string{}
 	log.Println("Entered the unconfirmedRequestBarrierStateCounter!!!")
 
 	for {
@@ -463,9 +467,11 @@ func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedR
 
 func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtUnconfirmedDeleteBarrier chan acknowledgeBarrier, allHaveUnconfirmedDeletion chan string) {
 	activePeersList := make([]string, 0)
-	fullList := make([]string, 0)
+	fullList := []string{myID}
 	peersThatHaveUnconfirmedDelete := make(map[string][]string)
-
+	peersThatHaveUnconfirmedDelete[myID] = []string{}
+	log.Println("Entered the unconfirmedDeletionBarrierStateCounter!!!")
+	
 	for {
 		select {
 		case newPeerUpdateShallowCopy := <-peerUpdateInUnconfirmedDeletionBarrierStateCounter:
