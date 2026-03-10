@@ -468,17 +468,29 @@ func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedR
 func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtUnconfirmedDeleteBarrier chan acknowledgeBarrier, allHaveUnconfirmedDeletion chan string) {
 	activePeersList := make([]string, 0)
 	fullList := []string{myID}
+
 	peersThatHaveUnconfirmedDelete := make(map[string][]string)
 	peersThatHaveUnconfirmedDelete[myID] = []string{}
-	log.Println("Entered the unconfirmedDeletionBarrierStateCounter!!!")
 	
+	log.Println("Entered the unconfirmedDeletionBarrierStateCounter!!!")
+
 	for {
 		select {
 		case newPeerUpdateShallowCopy := <-peerUpdateInUnconfirmedDeletionBarrierStateCounter:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			activePeersList = newPeerUpdate.Peers
-			fullList = append([]string{}, activePeersList...)
-			fullList = append(fullList, myID)
+			
+			for _, peerID := range activePeersList {
+				if peerID != myID && !(isElementInList(peerID, fullList)) {
+					fullList = append(fullList, peerID)
+				}
+			}
+
+			for _, peerID := range newPeerUpdate.Lost {
+				delete(peersThatHaveUnconfirmedDelete, peerID)
+			}
+
+			/*
 			// Update map
 			if newPeerUpdate.New != "" {
 				if !(isKeyInMap(newPeerUpdate.New, peersThatHaveUnconfirmedDelete)) {
@@ -493,19 +505,33 @@ func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmed
 
 			if !isKeyInMap(myID, peersThatHaveUnconfirmedDelete) {
 				peersThatHaveUnconfirmedDelete[myID] = []string{}
-			}
+			}*/
 
 			// activePeersList and the peersThatHaveConfirmedDelete map keys should always have the same elements in them
 
 		case acknowledgement := <-iAmAtUnconfirmedDeleteBarrier:
 			ownerID := acknowledgement.ownerID
 			ackID := acknowledgement.ackID
+
+			// ignore acks for peers who is not relevant anymore
+			if !isElementInList(ownerID, fullList) || !isElementInList(ackID, fullList) {
+				break
+			}
+
+			if !isKeyInMap(ownerID, peersThatHaveUnconfirmedDelete) {
+				peersThatHaveUnconfirmedDelete[ownerID] = []string{}
+			}
+
 			if !(isElementInList(ackID, peersThatHaveUnconfirmedDelete[ownerID])) {
 				peersThatHaveUnconfirmedDelete[ownerID] = append(peersThatHaveUnconfirmedDelete[ownerID], ackID)
 			}
 		}
 		// Check if everyone has reached barrier state, for each order in map
 		for _, peerID := range fullList {
+			if !isKeyInMap(peerID, peersThatHaveUnconfirmedDelete) {
+				peersThatHaveUnconfirmedDelete[peerID] = []string{}
+			}
+			
 			if containSameElements(fullList, peersThatHaveUnconfirmedDelete[peerID]) {
 				allHaveUnconfirmedDeletion <- peerID
 				peersThatHaveUnconfirmedDelete[peerID] = make([]string, 0)
