@@ -315,7 +315,6 @@ func requestBarrierStateCounter(myID string, peerUpdateInRequestBarrierStateCoun
 
 			// We are also one of the peers that must possibly acknowledge
 			//peersThatHaveConfirmedRequest[myID] = []string{}
-			// ! WHOOPSIE ! This is resetting the acknowledgment list at every peer update
 			if !isKeyInMap(myID, peersThatHaveConfirmedRequest) {
 				peersThatHaveConfirmedRequest[myID] = []string{}
 			}
