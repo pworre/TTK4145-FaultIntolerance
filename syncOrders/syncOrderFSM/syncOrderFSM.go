@@ -146,10 +146,14 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						log.Println(incomingID, " told us they have a request, and we believe them!")
 
 					case order.SOS_UNCONFIRMED_REQUEST:
+						// ! DO NOT RE-ACKNOWLEDGE FOR SAME STATE
+						/*
 						localOrderToSyncMap[key_ID] = incomingOrderToSync
 						log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 						iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 						log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
+						*/
+						localOrderToSyncMap[key_ID] = incomingOrderToSync
 
 					default:
 
@@ -167,10 +171,13 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 					case order.SOS_UNCONFIRMED_DELETION:
+						// ! DO NOT RE-ACKNOWLEDGE FOR SAME STATE
+						/*
 						localOrderToSyncMap[key_ID] = incomingOrderToSync
 						log.Printf("Peer %s sending UNCONFIRMED DELETE ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 						iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
-
+						*/
+						localOrderToSyncMap[key_ID] = incomingOrderToSync
 					default:
 
 					}

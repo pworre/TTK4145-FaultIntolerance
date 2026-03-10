@@ -176,7 +176,7 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 
 	// Copy of current state
 	nextState := currentState
-	nextState.Direction = elevator.D_Stop
+	arrivalDirection := currentState.Direction
 
 	// State transformation and action outputs via message passing to main
 	nextState.Floor = newFloor
@@ -187,6 +187,10 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 		if requests.ShouldStop(nextState) {
 			changeMotorDirection <- elevator.D_Stop
 			openDoor <- true
+
+			clearState := nextState
+			clearState.Direction = arrivalDirection
+
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 			if shouldClearUpButton {
 				servicedRequest <- elevator.ButtonEvent{
@@ -203,11 +207,12 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 					Floor:  nextState.Floor,
 					Button: elevator.B_Cab}
 			}
+			nextState.Direction = elevator.D_Stop
 			nextState = requests.ClearAtCurrentFloor(nextState)
-			stillActive <- true
-			// ! No setLights!!!
-			//setLights <- nextState.Requests
+			nextState.Direction = elevator.D_Stop
 			nextState.Behaviour = elevator.EB_DoorOpen
+
+			stillActive <- true
 		}
 	}
 

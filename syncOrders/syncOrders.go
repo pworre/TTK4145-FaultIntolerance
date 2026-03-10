@@ -158,9 +158,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
-				//if !isKeyInMap(myID, orderToSyncMap) {
-				//	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
-				//}
+				if !isKeyInMap(myID, orderToSyncMap) {
+					orderToSyncMap[myID] = order.NewEmptyOrder(myID)
+					break
+				}
 
 				copyMap := normalizeOrderMap(order.MapClone(orderToSyncMap))
 
