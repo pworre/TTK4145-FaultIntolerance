@@ -60,7 +60,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
-const debug_sync = false
+const debug_sync = true
 
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
