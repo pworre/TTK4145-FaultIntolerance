@@ -466,7 +466,7 @@ func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedR
 }
 
 func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmedDeletionBarrierStateCounter chan peers.PeerUpdate, iAmAtUnconfirmedDeleteBarrier chan acknowledgeBarrier, allHaveUnconfirmedDeletion chan string) {
-	activePeersList := make([]string, 0)
+	activePeersList := []string{}
 	fullList := []string{myID}
 
 	peersThatHaveUnconfirmedDelete := make(map[string][]string)
@@ -480,14 +480,23 @@ func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmed
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			activePeersList = newPeerUpdate.Peers
 			
+			fullList = []string{myID}
 			for _, peerID := range activePeersList {
 				if peerID != myID && !(isElementInList(peerID, fullList)) {
 					fullList = append(fullList, peerID)
 				}
 			}
 
-			for _, peerID := range newPeerUpdate.Lost {
-				delete(peersThatHaveUnconfirmedDelete, peerID)
+			for _, peerID := range fullList {
+				if !isKeyInMap(peerID, peersThatHaveUnconfirmedDelete) {
+					peersThatHaveUnconfirmedDelete[peerID] = []string{}
+				}
+			}
+
+			for key := range peersThatHaveUnconfirmedDelete {
+				if !isElementInList(key, fullList) {
+					delete(peersThatHaveUnconfirmedDelete, key)
+				}
 			}
 
 			/*
@@ -531,7 +540,7 @@ func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmed
 			if !isKeyInMap(peerID, peersThatHaveUnconfirmedDelete) {
 				peersThatHaveUnconfirmedDelete[peerID] = []string{}
 			}
-			
+
 			if containSameElements(fullList, peersThatHaveUnconfirmedDelete[peerID]) {
 				allHaveUnconfirmedDeletion <- peerID
 				peersThatHaveUnconfirmedDelete[peerID] = make([]string, 0)
