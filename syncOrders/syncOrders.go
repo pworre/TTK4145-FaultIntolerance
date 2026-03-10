@@ -60,7 +60,7 @@ type OrderNetworkMsg struct {
 	OrdersConfirmed_CAB  map[string][]order.Order     `json:"ordersConfirmed_CAB"`
 }
 
-const debug_sync = true
+const debug_sync = false
 
 const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
@@ -158,15 +158,16 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)
 				// TODO: Try commenting the first if statement
-				if !isKeyInMap(myID, orderToSyncMap) {
-					orderToSyncMap[myID] = order.NewEmptyOrder(myID)
-					break
-				}
+				//if !isKeyInMap(myID, orderToSyncMap) {
+				//	orderToSyncMap[myID] = order.NewEmptyOrder(myID)
+				//	break
+				//}
 
-				copyMap := normalizeOrderMap(order.MapClone(orderToSyncMap))
+				copyMap := normalizeOrderMapWithoutMyself(order.MapClone(orderToSyncMap), activePeersList)
+				copyMap[myID] = orderToSyncMap[myID]
 
-				if _, isInMap := copyMap[myID]; !isInMap {
-					copyMap[myID] = order.NewEmptyOrder(myID)
+				if len(copyMap) != len(orderToSyncMap) {
+					log.Println("Just so you know, there is a discrepancy between the orderMaps of syncOrders and syncOrderFSM. The code should still work, but now you know")
 				}
 
 				if copyMap[myID].OrderState == order.SOS_NONE {
@@ -175,7 +176,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 						copyMap[myID] = nextLocalOrder
 
 						newOrderStateReceival <- order.OrderStateMessage{
-							OrderToSyncMap:    normalizeOrderMap(order.MapClone(copyMap)),
+							OrderToSyncMap:    order.MapClone(copyMap),
 							TransmittedPeerID: myID,
 						}
 					default:
@@ -188,11 +189,14 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 				//log.Println("OMG GUYS I GOT A STATE TRANSITION AND WANT TO SEND A MESSAGE!")
+
+				// Probably done! // TODO: Check if order valid, and stuff!!
 				updateTransmitMessage <- newOrderNetworkMsg(myID, allElevatorStates, copyMap, ordersConfirmed_HALL, ordersConfirmed_CAB)
 				//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 			case orderToAdd := <-confirmedRequest:
-				if !isValidSyncedOrder(orderToAdd) {
+
+				if !order.IsValid(orderToAdd) || orderToAdd.OrderState != order.SOS_CONFIRMED_REQUEST {
 					log.Printf("Ignoring a confirmedRequest with invalid state: %+v\n", orderToAdd)
 					break
 				}
@@ -220,7 +224,8 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				}
 
 			case orderToDelete := <-confirmedDeletion:
-				if !isValidSyncedOrder(orderToDelete) {
+
+				if !order.IsValid(orderToDelete) || orderToDelete.OrderState != order.SOS_CONFIRMED_DELETION {
 					log.Printf("Ignoring a confirmedDeletion with invalid state: %+v\n", orderToDelete)
 					break
 				}
@@ -317,19 +322,13 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				// We discard messages from peers that are not yet recognized by the peers module
 				if isElementInList(msgReceived.PeerID, activePeersList) {
 
-					// !!!!!!!!!! Can probably comment out!
 					// ! This doesnt make sense?? We should never get nil for these fields?
-					if msgReceived.OrderToSyncMap == nil {
-						log.Println("Received nil for OrderToSync Map: This is weird??? Try the thing under!")
-						msgReceived.OrderToSyncMap = make(map[string]order.Order)
-						// Here:
-						//for _ , peerID := range activePeersList {
-						//	msgReceived.OrderToSyncMap[peerID] = order.NewEmptyOrder(myID) // Maybe UNKNOWN instead????
-						//}
-						//msgReceived.OrderToSyncMap[myID] = order.NewEmptyOrder(myID)
-					}
+
 					if msgReceived.OrdersConfirmed_CAB == nil {
 						msgReceived.OrdersConfirmed_CAB = make(map[string][]order.Order)
+					}
+					if msgReceived.OrdersConfirmed_HALL == nil {
+						msgReceived.OrdersConfirmed_HALL = []order.Order{}
 					}
 					if msgReceived.AllElevatorStates == nil {
 						msgReceived.AllElevatorStates = make(map[string]elevator.Elevator)
@@ -339,10 +338,12 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					// ! Probably the big mistake!!!!!!!!!
 					//orderToSyncMap = order.MapClone(msgReceived.OrderToSyncMap)
 
-					newOrderSyncMap := normalizeOrderMap(order.MapClone(msgReceived.OrderToSyncMap))
+					fullList := append([]string{}, activePeersList...)
+					fullList = append(fullList, myID)
+					newOrderSyncMap := normalizeOrderMapWithoutMyself(order.MapClone(msgReceived.OrderToSyncMap), fullList)
 					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: newOrderSyncMap, TransmittedPeerID: msgReceived.PeerID}
 
-					// Merging elevator state and ensuring our state is newest from ourself known state
+					// Merging elevator state and ensuring our state is our own newest state
 					for id, state := range msgReceived.AllElevatorStates {
 						allElevatorStates[id] = state
 					}
@@ -665,40 +666,32 @@ func isKeyInMap[T any](key string, theMap map[string]T) bool {
 	return isInMap
 }
 
-func isValidSyncedOrder(ord order.Order) bool {
-	if ord.OrderState == order.SOS_NONE {
-		return false
-	}
-	if ord.OrderFloor < 0 || ord.OrderFloor >= elevator.N_FLOORS {
-		return false
-	}
-	if ord.OrderType < 0 || ord.OrderType >= elevator.N_BUTTONS {
-		return false
-	}
-	return true
-}
+// !!! Rename!!!
 
-func normalizeOrderMap(orderMap map[string]order.Order, ids ...string) map[string]order.Order {
+func normalizeOrderMapWithoutMyself(orderMap map[string]order.Order, activePeers []string) map[string]order.Order {
 	if orderMap == nil {
 		orderMap = make(map[string]order.Order)
 	}
-	
-	for _, id := range ids {
-		if id == "" {
-			continue
-		}
-		if _, isInMap := orderMap[id]; !isInMap {
-			orderMap[id] = order.NewEmptyOrder(id)
+
+	for _, id := range activePeers {
+		_, isInMap := orderMap[id]
+		if !isInMap {
+			orderMap[id] = order.NewUnknownOrder(id)
 		}
 	}
 
 	for id, ord := range orderMap {
-		if ord.PeerID == "" { 
+		if !slices.Contains(activePeers, id) {
+			delete(orderMap, id)
+			continue
+		}
+
+		if ord.OrderState == order.SOS_NONE {
 			orderMap[id] = order.NewEmptyOrder(id)
 			continue
 		}
-		if ord.OrderState == order.SOS_NONE {
-			orderMap[id] = order.NewEmptyOrder(id)
+		if ord.OrderState == order.SOS_UNKNOWN {
+			orderMap[id] = order.NewUnknownOrder(id)
 			continue
 		}
 

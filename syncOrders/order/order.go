@@ -45,6 +45,25 @@ func NewEmptyOrder(id string) Order {
 	}
 }
 
+func NewUnknownOrder(id string) Order {
+	return Order{
+		PeerID:     id,
+		OrderFloor: -1,
+		OrderType:  elevator.Button(-1),
+		OrderState: SOS_UNKNOWN,
+	}
+}
+
+func IsValid(ord Order) bool {
+	if ord.OrderFloor < 0 || ord.OrderFloor >= elevator.N_FLOORS {
+		return false
+	}
+	if ord.OrderType < 0 || ord.OrderType >= elevator.N_BUTTONS {
+		return false
+	}
+	return true
+}
+
 func MapClone[M ~map[string]T, T any](theMap M) M {
 	clone := make(M, len(theMap))
 	for key, val := range theMap {
