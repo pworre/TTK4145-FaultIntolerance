@@ -213,7 +213,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					if isHallOrder(orderToAdd) {
 						ordersConfirmed_HALL = append(ordersConfirmed_HALL, orderToAdd)
 					}
-					if isCabOrder(orderToAdd) {
+					if IsCabOrder(orderToAdd) {
 						ordersConfirmed_CAB[orderToAdd.PeerID] = append(ordersConfirmed_CAB[orderToAdd.PeerID], orderToAdd)
 					}
 
@@ -243,7 +243,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 				wasDeleted := false
 
-				if isCabOrder(orderToDelete) {
+				if IsCabOrder(orderToDelete) {
 
 					newCabList := []order.Order{}
 
@@ -530,7 +530,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	assignEvent <- newAssignment
 }
 
-func isCabOrder(ord order.Order) bool {
+func IsCabOrder(ord order.Order) bool {
 	return ord.OrderType == elevator.B_Cab
 }
 
