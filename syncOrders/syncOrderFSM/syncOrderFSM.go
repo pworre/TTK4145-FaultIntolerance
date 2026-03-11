@@ -111,11 +111,6 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						continue
 					}
 
-					if localOrder.OrderState == order.SOS_UNKNOWN {
-						localOrderToSyncMap[key_ID] = incomingOrderToSync
-						changed = true
-					}
-
 					switch incomingOrderToSync.OrderState {
 					case order.SOS_NONE:
 
@@ -166,9 +161,11 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						log.Printf("Peer %s sees UNCONFIRMED for owner %s from sender %s\n", myID, key_ID, incomingID)
 
 						switch localOrderToSyncMap[key_ID].OrderState {
-						case order.SOS_NONE:
-							localOrderToSyncMap[key_ID] = incomingOrderToSync
-							changed = true
+						case order.SOS_NONE, order.SOS_UNKNOWN:
+							if localOrderToSyncMap[key_ID] != incomingOrderToSync {
+								localOrderToSyncMap[key_ID] = incomingOrderToSync
+								changed = true
+							}
 
 							// Need a second barrier, also for the unconfirmation......
 							log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
@@ -189,8 +186,10 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 								iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 								log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
 							*/
-							localOrderToSyncMap[key_ID] = incomingOrderToSync
-							changed = true
+							if localOrderToSyncMap[key_ID] != incomingOrderToSync {
+								localOrderToSyncMap[key_ID] = incomingOrderToSync
+								changed = true
+							}
 
 						default:
 
@@ -205,7 +204,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 						switch localOrderToSyncMap[key_ID].OrderState {
-						case order.SOS_CONFIRMED_REQUEST, order.SOS_NONE:
+						case order.SOS_CONFIRMED_REQUEST, order.SOS_NONE, order.SOS_UNKNOWN:
 							if localOrderToSyncMap[key_ID] != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								changed = true
@@ -236,7 +235,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 						switch localOrderToSyncMap[key_ID].OrderState {
-						case order.SOS_NONE, order.SOS_UNCONFIRMED_REQUEST, order.SOS_CONFIRMED_REQUEST:
+						case order.SOS_NONE,  order.SOS_UNKNOWN, order.SOS_UNCONFIRMED_REQUEST, order.SOS_CONFIRMED_REQUEST:
 							if localOrderToSyncMap[key_ID] != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								changed = true
@@ -257,7 +256,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 						switch localOrderToSyncMap[key_ID].OrderState {
-						case order.SOS_UNCONFIRMED_DELETION, order.SOS_CONFIRMED_DELETION:
+						case order.SOS_UNKNOWN, order.SOS_CONFIRMED_REQUEST, order.SOS_UNCONFIRMED_DELETION, order.SOS_CONFIRMED_DELETION:
 							if localOrderToSyncMap[key_ID] != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								changed = true
