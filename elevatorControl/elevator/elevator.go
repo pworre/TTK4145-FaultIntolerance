@@ -123,3 +123,16 @@ func PollButtons(buttonEvent chan ButtonEvent) {
 		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
 	}
 }
+
+func NewUnknownElevator() Elevator {
+	return Elevator{
+		Floor:     -1,
+		Direction: -2,
+		Behaviour: -1,
+		// No requests
+	}
+}
+
+func IsValid(e Elevator) bool {
+	return e.Floor >= 0 && e.Floor < N_FLOORS && e.Direction >= -1 && e.Direction <= 1 && e.Behaviour >= 0 && e.Behaviour <= 2
+}

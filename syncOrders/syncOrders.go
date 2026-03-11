@@ -91,6 +91,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	peerUpdateInUnconfirmedDeletionBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
 	//waitForReconnection := make(chan peers.PeerUpdate)
 
+	resetAckListReqBar := make(chan string)
+	resetAckListDelBar := make(chan string)
+	resetAckListUncReqBar := make(chan string)
+	resetAckListUncDelBar := make(chan string)
+
 	// TODO: End channels
 
 	networkRx := make(chan []byte, 1024)
@@ -108,7 +113,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	// TODO: Check if necessary to make deep copies of the peerUpdates
 	go peersUpdateRepeater(peerUpdate, peerUpdateInSyncOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, peerUpdateInUnconfirmedRequestBarrierStateCounter, peerUpdateInUnconfirmedDeletionBarrierStateCounter)
 
-	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, peerUpdateInUnconfirmedRequestBarrierStateCounter, peerUpdateInUnconfirmedDeletionBarrierStateCounter)
+	go syncOrderFSM.StateMachineLoop(myID, newOrderStateTransition, newOrderStateReceival, confirmedRequest, confirmedDeletion, networkDisconnect, clearAllConfirmedOrders, peerUpdateInSyncOrdersFSM, peerUpdateInRequestBarrierStateCounter, peerUpdateInDeletionBarrierStateCounter, peerUpdateInUnconfirmedRequestBarrierStateCounter, peerUpdateInUnconfirmedDeletionBarrierStateCounter, resetAckListReqBar, resetAckListDelBar, resetAckListUncReqBar, resetAckListUncDelBar)
 
 	// ! VERY IMPORTANT ! When new peer initializes and joins, it should set itself as none and everyone else as unknown
 	// ! Is this handled by default, or must we explicitly enforce this?
@@ -129,16 +134,30 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 	latestLocalElevatorState := elevator.NewStartElevator(startFloor)
 
+	// ! Only for debugging !
+	lastButtonsToLight := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
+
+	// TODO: We should only get the peerupdate in orderSync, and then use the repeater on the list!!!!!! Why didnt I think of that before????
+
 	for {
 		select {
 		case newPeerUpdateShallowCopy := <-peerUpdateInSyncOrders:
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
-			for _, lostID := range newPeerUpdate.Lost {
-				delete(allElevatorStates, lostID)
-				delete(ordersConfirmed_CAB, lostID)
+
+			fullList := append([]string{}, activePeersList...)
+			fullList = append(fullList, myID)
+			orderToSyncMap = normalizeOrderMap(order.MapClone(orderToSyncMap), fullList)
+
+			newOrderStateReceival <- order.OrderStateMessage{
+				OrderToSyncMap:    order.MapClone(orderToSyncMap),
+				TransmittedPeerID: myID,
 			}
+
+			allElevatorStates = normalizeElevatorStates(allElevatorStates, fullList)
+			allElevatorStates[myID] = latestLocalElevatorState
+
 			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
 			if len(activePeersList) == 0 {
 				networkDisconnect <- true
@@ -170,23 +189,36 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 				//	break
 				//}
 
-				copyMap := normalizeOrderMapWithoutMyself(order.MapClone(orderToSyncMap), activePeersList)
-				copyMap[myID] = orderToSyncMap[myID]
+				fullList := append([]string{}, activePeersList...)
+				fullList = append(fullList, myID)
+				copyMap := normalizeOrderMap(order.MapClone(orderToSyncMap), fullList)
 
 				if len(copyMap) != len(orderToSyncMap) {
 					log.Println("Just so you know, there is a discrepancy between the orderMaps of syncOrders and syncOrderFSM. The code should still work, but now you know")
 				}
 
+				// ! Viktig fix: Da jeg skrev orderSyncFSM, tok jeg utgangspunkt i at vi aldri la inn nye ordre før vi hadde behandlet en ordre ferdig,
+				// ! og dermed var det aldri tvetydighet om hvilken ordre som skulle legges til når vi når barrieren.
+				// ! Slik som koden har vært skrevet til nå, var kanskje ikke dette tilfelle allikevel.
+				// ! Jeg tror denne fixen har sørget for dette nå, men det burde testes grundig og dobbeltsjekkes for å være sikker
 				if copyMap[myID].OrderState == order.SOS_NONE {
-					select {
-					case nextLocalOrder := <-orderSyncBuffer:
-						copyMap[myID] = nextLocalOrder
+					if order.IsValid(copyMap[myID]) {
+						log.Println("NONE order was not properly canonized to an EmptyOrder in syncOrderFSM before being passed to syncOrders", copyMap[myID])
+					} else {
+						select {
+						case nextLocalOrder := <-orderSyncBuffer:
+							resetAckListReqBar <- myID
+							resetAckListDelBar <- myID
+							resetAckListUncReqBar <- myID
+							resetAckListUncDelBar <- myID
+							copyMap[myID] = nextLocalOrder
 
-						newOrderStateReceival <- order.OrderStateMessage{
-							OrderToSyncMap:    order.MapClone(copyMap),
-							TransmittedPeerID: myID,
+							newOrderStateReceival <- order.OrderStateMessage{
+								OrderToSyncMap:    order.MapClone(copyMap),
+								TransmittedPeerID: myID,
+							}
+						default:
 						}
-					default:
 					}
 				}
 				orderToSyncMap = copyMap
@@ -224,7 +256,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 					// Reached Barrier state, we can now safely do side effects
 					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
-					setLights <- buttonsToLight
+					if buttonsToLight != lastButtonsToLight {
+						log.Printf("SET LIGHTS -> HALL=%+v CAB=%+v ARRAY=%+v", ordersConfirmed_HALL, ordersConfirmed_CAB[myID], buttonsToLight)
+						setLights <- buttonsToLight
+						lastButtonsToLight = buttonsToLight
+					}
 
 					SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
 					log.Printf("HALL: %+v 	CAB: %+v\n", ordersConfirmed_HALL, ordersConfirmed_CAB)
@@ -298,7 +334,11 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 					// Reached Barrier state, we can now safely do side effects
 					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
-					setLights <- buttonsToLight
+					if buttonsToLight != lastButtonsToLight {
+						log.Printf("SET LIGHTS -> HALL=%+v CAB=%+v ARRAY=%+v", ordersConfirmed_HALL, ordersConfirmed_CAB[myID], buttonsToLight)
+						setLights <- buttonsToLight
+						lastButtonsToLight = buttonsToLight
+					}
 				}
 
 				SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
@@ -347,7 +387,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 
 					fullList := append([]string{}, activePeersList...)
 					fullList = append(fullList, myID)
-					newOrderSyncMap := normalizeOrderMapWithoutMyself(order.MapClone(msgReceived.OrderToSyncMap), fullList)
+					newOrderSyncMap := normalizeOrderMap(order.MapClone(msgReceived.OrderToSyncMap), fullList)
 					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: newOrderSyncMap, TransmittedPeerID: msgReceived.PeerID}
 
 					// Merging elevator state and ensuring our state is our own newest state
@@ -481,9 +521,15 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	ids = append(ids, myID)
 
 	for _, peerID := range ids {
+
+		elevatorPeer, exists := allElevatorStates[peerID]
+		if !elevator.IsValid(elevatorPeer) || !exists {
+			continue
+		}
+
 		// convert elevator.behaviour [int] to hra.behaviour [string]
 		var elevBehaviour_hra string
-		switch allElevatorStates[peerID].Behaviour {
+		switch elevatorPeer.Behaviour {
 		case elevator.EB_Idle:
 			elevBehaviour_hra = "idle"
 		case elevator.EB_Moving:
@@ -493,7 +539,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 		}
 
 		var elevDirection_hra string
-		switch allElevatorStates[peerID].Direction {
+		switch elevatorPeer.Direction {
 		case elevator.D_Up:
 			elevDirection_hra = "up"
 		case elevator.D_Stop:
@@ -509,7 +555,7 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 
 		hraInput.States[peerID] = hallRequestAssigner.HRAElevState{
 			Behavior:    elevBehaviour_hra,
-			Floor:       allElevatorStates[peerID].Floor,
+			Floor:       elevatorPeer.Floor,
 			Direction:   elevDirection_hra,
 			CabRequests: cabRequests_hra,
 		}
@@ -518,7 +564,12 @@ func SendConfirmedOrdersToHallAssigner(ordersConfirmed_HALL []order.Order, activ
 	newAssignmentMap := hallRequestAssigner.Decode(
 		hallRequestAssigner.AssignOrders(
 			hallRequestAssigner.Encode(hraInput)))
-	newAssignment := newAssignmentMap[myID]
+
+	newAssignment, ok := newAssignmentMap[myID]
+	if !ok {
+		log.Printf("HRA did not return assignment for %s", myID)
+		newAssignment = [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
+	}
 
 	if debug_sync {
 		log.Printf("HRA input for hall request: %+v\n", hraInput.HallRequests)
@@ -591,32 +642,6 @@ func orderListsToRequestArray(hallOrders []order.Order, cabOrders []order.Order)
 	return requestArray
 }
 
-func whichButtonsShouldClear(floor int, direction elevator.MotorDirection, requests [elevator.N_FLOORS][elevator.N_BUTTONS]bool) (bool, bool) {
-
-	shouldClearUpButton := false
-	shouldClearDownButton := false
-
-	switch direction {
-	case elevator.D_Up:
-		if !requestsAbove(floor, direction, requests) && !requests[floor][elevator.B_HallUp] {
-			shouldClearDownButton = true
-		}
-		shouldClearUpButton = true
-
-	case elevator.D_Down:
-		if !requestsBelow(floor, direction, requests) && !requests[floor][elevator.B_HallDown] {
-			shouldClearUpButton = true
-		}
-		shouldClearDownButton = true
-
-	case elevator.D_Stop:
-		shouldClearUpButton = true
-		shouldClearDownButton = true
-	}
-
-	return shouldClearUpButton, shouldClearDownButton
-}
-
 func requestsAbove(floor int, direction elevator.MotorDirection, requests [elevator.N_FLOORS][elevator.N_BUTTONS]bool) bool {
 	for f := floor + 1; f < elevator.N_FLOORS; f++ {
 		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
@@ -675,12 +700,12 @@ func isKeyInMap[T any](key string, theMap map[string]T) bool {
 
 // !!! Rename!!!
 
-func normalizeOrderMapWithoutMyself(orderMap map[string]order.Order, activePeers []string) map[string]order.Order {
+func normalizeOrderMap(orderMap map[string]order.Order, listOfIDs []string) map[string]order.Order {
 	if orderMap == nil {
 		orderMap = make(map[string]order.Order)
 	}
 
-	for _, id := range activePeers {
+	for _, id := range listOfIDs {
 		_, isInMap := orderMap[id]
 		if !isInMap {
 			orderMap[id] = order.NewUnknownOrder(id)
@@ -688,7 +713,7 @@ func normalizeOrderMapWithoutMyself(orderMap map[string]order.Order, activePeers
 	}
 
 	for id, ord := range orderMap {
-		if !slices.Contains(activePeers, id) {
+		if !slices.Contains(listOfIDs, id) {
 			delete(orderMap, id)
 			continue
 		}
@@ -709,4 +734,31 @@ func normalizeOrderMapWithoutMyself(orderMap map[string]order.Order, activePeers
 		}
 	}
 	return orderMap
+}
+
+func normalizeElevatorStates(elevatorStates map[string]elevator.Elevator, listOfIDs []string) map[string]elevator.Elevator {
+	if elevatorStates == nil {
+		elevatorStates = make(map[string]elevator.Elevator)
+	}
+
+	for _, id := range listOfIDs {
+		_, isInMap := elevatorStates[id]
+		if !isInMap {
+			elevatorStates[id] = elevator.NewUnknownElevator()
+		}
+	}
+
+	for id, elev := range elevatorStates {
+		if !slices.Contains(listOfIDs, id) {
+			delete(elevatorStates, id)
+			continue
+		}
+
+		if !elevator.IsValid(elev) {
+			elevatorStates[id] = elevator.NewUnknownElevator()
+			continue
+		}
+	}
+
+	return elevatorStates
 }

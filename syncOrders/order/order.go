@@ -54,6 +54,7 @@ func NewUnknownOrder(id string) Order {
 	}
 }
 
+/*
 func IsValid(ord Order) bool {
 	if ord.OrderFloor < 0 || ord.OrderFloor >= elevator.N_FLOORS {
 		return false
@@ -62,6 +63,12 @@ func IsValid(ord Order) bool {
 		return false
 	}
 	return true
+}
+*/
+
+
+func IsValid(ord Order) bool {
+	return ord.OrderFloor >= 0 && ord.OrderFloor < elevator.N_FLOORS && ord.OrderType >= 0 && ord.OrderType < elevator.N_BUTTONS
 }
 
 func MapClone[M ~map[string]T, T any](theMap M) M {

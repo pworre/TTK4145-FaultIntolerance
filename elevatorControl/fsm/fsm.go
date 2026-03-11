@@ -116,7 +116,7 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	if assignment == currentState.Requests {
 		return currentState
 	}
-	
+
 	// Copy of current state
 	nextState := currentState
 	nextState.Requests = assignment

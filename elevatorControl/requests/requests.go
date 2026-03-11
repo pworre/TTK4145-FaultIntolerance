@@ -114,20 +114,28 @@ func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool, bool) {
 
 	switch e.Direction {
 	case elevator.D_Up:
-		if !requestsAbove(e) && !e.Requests[e.Floor][elevator.B_HallUp] {
-			shouldClearDownButton = true
-		}
-		shouldClearUpButton = true
-
-	case elevator.D_Down:
-		if !requestsBelow(e) && !e.Requests[e.Floor][elevator.B_HallDown] {
+		if e.Requests[e.Floor][elevator.B_HallUp] {
 			shouldClearUpButton = true
 		}
-		shouldClearDownButton = true
+		if e.Requests[e.Floor][elevator.B_HallDown] && !requestsAbove(e) && !e.Requests[e.Floor][elevator.B_HallUp] {
+			shouldClearDownButton = true
+		}
+
+	case elevator.D_Down:
+		if e.Requests[e.Floor][elevator.B_HallDown] {
+			shouldClearDownButton = true
+		}
+		if e.Requests[e.Floor][elevator.B_HallUp] && !requestsBelow(e) && !e.Requests[e.Floor][elevator.B_HallDown] {
+			shouldClearUpButton = true
+		}
 
 	case elevator.D_Stop:
-		shouldClearUpButton = true
-		shouldClearDownButton = true
+		if e.Requests[e.Floor][elevator.B_HallUp] {
+			shouldClearUpButton = true
+		}
+		if e.Requests[e.Floor][elevator.B_HallDown] {
+			shouldClearDownButton = true
+		}
 	}
 	
 	return shouldClearUpButton, shouldClearDownButton, shouldClearCabButton
