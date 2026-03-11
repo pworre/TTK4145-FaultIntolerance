@@ -202,7 +202,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 						switch localOrder.OrderState {
-						case order.SOS_UNKNOWN, order.SOS_UNCONFIRMED_REQUEST, order.SOS_CONFIRMED_REQUEST:
+						case order.SOS_NONE, order.SOS_UNKNOWN, order.SOS_UNCONFIRMED_REQUEST, order.SOS_CONFIRMED_REQUEST:
 							if localOrder != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								localOrder = localOrderToSyncMap[key_ID]
@@ -440,7 +440,9 @@ func deletionBarrierStateCounter(myID string, peerUpdateInDeletionBarrierStateCo
 			for key := range peersThatHaveConfirmedDelete {
 				if !isElementInList(key.ownerID, fullList) {
 					delete(peersThatHaveConfirmedDelete, key)
+					continue
 				}
+				peersThatHaveConfirmedDelete[key] = maskAcklistWithFullist(peersThatHaveConfirmedDelete[key], fullList)
 			}
 
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT CONFIRMED DELETE LIST????? ", fullList)
@@ -497,7 +499,9 @@ func unconfirmedRequestBarrierStateCounter(myID string, peerUpdateInUnconfirmedR
 			for key := range peersThatHaveUnconfirmedRequest {
 				if !isElementInList(key.ownerID, fullList) {
 					delete(peersThatHaveUnconfirmedRequest, key)
+					continue
 				}
+				peersThatHaveUnconfirmedRequest[key] = maskAcklistWithFullist(peersThatHaveUnconfirmedRequest[key], fullList)
 			}
 
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT UNCONFIRMED REQUEST LIST????? ", fullList)
@@ -564,7 +568,9 @@ func unconfirmedDeletionBarrierStateCounter(myID string, peerUpdateInUnconfirmed
 			for key := range peersThatHaveUnconfirmedDelete {
 				if !isElementInList(key.ownerID, fullList) {
 					delete(peersThatHaveUnconfirmedDelete, key)
+					continue
 				}
+				peersThatHaveUnconfirmedDelete[key] = maskAcklistWithFullist(peersThatHaveUnconfirmedDelete[key], fullList)
 			}
 
 			log.Println("UUUUUHM, DO I HAVE THE RIGHT UNCONFIRMED DELETE LIST????? ", fullList)
