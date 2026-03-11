@@ -41,6 +41,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 	localOrderToSyncMap := make(map[string]order.Order)
 	localOrderToSyncMap[myID] = order.NewEmptyOrder(myID)
 
+	lastConfirmedOrderMap := make(map[string]order.Order)
+
 	// TODO: Random channels, sort later
 
 	iAmAtRequestBarrier := make(chan acknowledgeBarrier, 64)
@@ -87,6 +89,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			for _, peerID := range newPeerUpdate.Lost {
 				if isKeyInMap(peerID, localOrderToSyncMap) {
 					delete(localOrderToSyncMap, peerID)
+					delete(lastConfirmedOrderMap, peerID)
 					changed = true
 				} 
 			}
@@ -96,6 +99,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			for ID, _ := range localOrderToSyncMap {
 				updateOrderStateInMap(localOrderToSyncMap, ID, order.SOS_UNKNOWN)
 			}
+			clear(lastConfirmedOrderMap)
 			clearAllConfirmedOrders <- true
 			changed = true
 
@@ -122,16 +126,25 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 					switch incomingOrderToSync.OrderState {
 					case order.SOS_NONE:
 
+						rememberedOrder, orderExists := lastConfirmedOrderMap[key_ID]
+						if !orderExists {
+							break
+						}
+
 						switch localOrder.OrderState {
 						case order.SOS_CONFIRMED_REQUEST:
-							confirmedRequest <- localOrder
-							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
-							changed = true
+							if rememberedOrder.OrderState == order.SOS_CONFIRMED_REQUEST {
+								confirmedRequest <- localOrder
+								updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
+								changed = true
+							}
 
 						case order.SOS_CONFIRMED_DELETION:
-							confirmedDeletion <- localOrder
-							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
-							changed = true
+							if rememberedOrder.OrderState == order.SOS_CONFIRMED_DELETION {
+								confirmedDeletion <- localOrder
+								updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
+								changed = true
+							}
 
 						default:
 							log.Println(incomingID, " told us they have no orders, and we dont care.")
@@ -213,6 +226,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 					case order.SOS_CONFIRMED_REQUEST:
 
+						//lastConfirmedOrderMap[key_ID] = incomingOrderToSync
+
 						iAmAtRequestBarrier <- acknowledgeBarrier{
 								key: 	makeBarrierKey(incomingOrderToSync), 
 								ackID: 	incomingID,
@@ -234,6 +249,8 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 					case order.SOS_CONFIRMED_DELETION:
+
+						//lastConfirmedOrderMap[key_ID] = incomingOrderToSync
 
 						iAmAtDeleteBarrier <- acknowledgeBarrier{
 							key: 	makeBarrierKey(incomingOrderToSync), 
@@ -267,6 +284,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 					break
 				}
 				confirmedRequest <- orderToAdd
+				lastConfirmedOrderMap[orderToAdd.PeerID] = orderToAdd
 				updateOrderStateInMap(localOrderToSyncMap, orderToAdd.PeerID, order.SOS_NONE)
 				changed = true
 				// !!!!!!!!!!!!!!!IMPORTANT!!!!!!!!!!!!!!!
@@ -284,6 +302,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 				}
 
 				confirmedDeletion <- orderToDelete
+				lastConfirmedOrderMap[orderToDelete.PeerID] = orderToDelete
 				updateOrderStateInMap(localOrderToSyncMap, orderToDelete.PeerID, order.SOS_NONE)
 				changed = true
 
