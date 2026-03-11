@@ -7,9 +7,9 @@ const INACTIVITY_TIMEOUT = 9 * time.Second
 const OBSTRUCTION_TIMEOUT = 5 * time.Second
 
 func initTimers() (*time.Timer, *time.Timer, *time.Timer) {
-	doorTimer := time.NewTimer(0 * time.Second)
-	inactivityTimer := time.NewTimer(0 * time.Second)
-	obstructionTimer := time.NewTimer(0 * time.Second)
+	doorTimer := time.NewTimer(0)
+	inactivityTimer := time.NewTimer(0)
+	obstructionTimer := time.NewTimer(0)
 	<-doorTimer.C
 	<-inactivityTimer.C
 	<-obstructionTimer.C
@@ -21,11 +21,11 @@ func Timers(resetObstructionTimer chan bool, resetInactivityTimer chan bool, res
 	for {
 		select {
 		case <-resetObstructionTimer:
-			obstructionTimer.Reset(OBSTRUCTION_TIMEOUT)
+			safeReset(obstructionTimer, OBSTRUCTION_TIMEOUT)
 		case <-resetInactivityTimer:
-			inactivityTimer.Reset(INACTIVITY_TIMEOUT)
+			safeReset(inactivityTimer, INACTIVITY_TIMEOUT)
 		case <-resetDoorTimer:
-			doorTimer.Reset(DOOR_OPEN_DURATION)
+			safeReset(doorTimer, DOOR_OPEN_DURATION)
 		case <-doorTimer.C:
 			doorTimeout <- true
 		case <-inactivityTimer.C:
@@ -34,4 +34,14 @@ func Timers(resetObstructionTimer chan bool, resetInactivityTimer chan bool, res
 			obstructionTimeout <- true
 		}
 	}
+}
+
+func safeReset(timer *time.Timer, duration time.Duration) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(duration)
 }
