@@ -62,7 +62,7 @@ type OrderNetworkMsg struct {
 
 const debug_sync = false
 
-const TRANSMIT_INTERVAL = 800 * time.Millisecond
+const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
 const G_BCAST_PORT = 25532
 
