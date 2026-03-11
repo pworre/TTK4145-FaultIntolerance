@@ -124,38 +124,17 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrder.OrderState {
 						case order.SOS_CONFIRMED_REQUEST:
-							// Add confirmed order, turn on lights
-							// TODO: Double-check that the order has state completed
-							// ! Update: Probably done!
-							if localOrder.OrderState == order.SOS_NONE {
-								log.Println("WARNING: Attempt to add NONE order to confirmed request list:", localOrder)
-							} else {
-								confirmedRequest <- localOrder
-							}
+							confirmedRequest <- localOrder
 							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 							changed = true
 
 						case order.SOS_CONFIRMED_DELETION:
-							// Remove completed order, turn off lights
-							// TODO: Double-check that the order has state completed
-							// ! Update: Probably done!
-
-							/*
-							if order.IsValid(incomingOrderToSync) {
-								break
-							}*/
-
-							if localOrder.OrderState == order.SOS_NONE {
-								log.Println("WARNING: Attempt to add NONE order to confirmed delete list:", localOrder)
-							} else {
-								confirmedDeletion <- localOrder
-							}
+							confirmedDeletion <- localOrder
 							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
 							changed = true
 
 						default:
 							log.Println(incomingID, " told us they have no orders, and we dont care.")
-
 						}
 
 					case order.SOS_UNCONFIRMED_REQUEST:
@@ -188,13 +167,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 							log.Println(incomingID, " told us they have a request, and we believe them!")
 
 						case order.SOS_UNCONFIRMED_REQUEST:
-							// ! DO NOT RE-ACKNOWLEDGE FOR SAME STATE
-							/*
-								localOrder = incomingOrderToSync
-								log.Printf("Peer %s sending UNCONFIRMED ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
-								iAmAtUnconfirmedRequestBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
-								log.Println(incomingID, " told us they have a request, and we re-acknowledged!")
-							*/
+
 							if localOrder != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								localOrder = localOrderToSyncMap[key_ID]
@@ -239,7 +212,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 					case order.SOS_CONFIRMED_REQUEST:
-						//incomingConfirmedRequest(incomingOrderToSync.PeerID)
+
 						iAmAtRequestBarrier <- acknowledgeBarrier{
 								key: 	makeBarrierKey(incomingOrderToSync), 
 								ackID: 	incomingID,
@@ -261,7 +234,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 					case order.SOS_CONFIRMED_DELETION:
-						//incomingConfirmedDeletion(incomingOrderToSync.PeerID)
+
 						iAmAtDeleteBarrier <- acknowledgeBarrier{
 							key: 	makeBarrierKey(incomingOrderToSync), 
 							ackID: 	incomingID,
@@ -288,7 +261,6 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 				}
 
 			case orderToAdd := <-allAgreeToAddOrder:
-				// Add confirmed order, turn on lights
 				log.Printf("FSM adding confirmedRequest %+v\n", orderToAdd)
 				if orderToAdd.OrderState != order.SOS_CONFIRMED_REQUEST {
 					log.Println("WARNING: FSM attempt to add a non_CONFIRMED_REQUEST order to confirmed request list:", orderToAdd)
@@ -296,7 +268,6 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 				}
 				confirmedRequest <- orderToAdd
 				updateOrderStateInMap(localOrderToSyncMap, orderToAdd.PeerID, order.SOS_NONE)
-				//newOrderStateTransition <- MapCopy(localOrderToSyncMap)
 				changed = true
 				// !!!!!!!!!!!!!!!IMPORTANT!!!!!!!!!!!!!!!
 
@@ -314,7 +285,6 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 				confirmedDeletion <- orderToDelete
 				updateOrderStateInMap(localOrderToSyncMap, orderToDelete.PeerID, order.SOS_NONE)
-				//newOrderStateTransition <- MapCopy(localOrderToSyncMap)
 				changed = true
 
 			case orderToPromote := <-allHaveUnconfirmedRequest:
