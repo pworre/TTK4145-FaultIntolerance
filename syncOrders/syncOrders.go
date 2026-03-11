@@ -223,7 +223,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					//log.Printf("OMG GUYS I JUST SENT A MESSAGE!")
 
 					// Reached Barrier state, we can now safely do side effects
-					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+					buttonsToLight := OrderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
 					setLights <- buttonsToLight
 
 					SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
@@ -297,7 +297,7 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					log.Println("UPDATED CABORDER LIST: ", ordersConfirmed_CAB)
 
 					// Reached Barrier state, we can now safely do side effects
-					buttonsToLight := orderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
+					buttonsToLight := OrderListsToRequestArray(ordersConfirmed_HALL, ordersConfirmed_CAB[myID])
 					setLights <- buttonsToLight
 				}
 
@@ -577,7 +577,7 @@ func hasNoOrders(hallOrders []order.Order, cabOrders map[string][]order.Order) b
 	return true
 }
 
-func orderListsToRequestArray(hallOrders []order.Order, cabOrders []order.Order) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
+func OrderListsToRequestArray(hallOrders []order.Order, cabOrders []order.Order) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
 
 	requestArray := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
 
