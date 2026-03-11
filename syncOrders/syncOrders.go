@@ -155,12 +155,28 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			case requestToAdd := <-newRequest:
 				//log.Printf("OMG I GOT A REQUEST!!!")
 				orderToAdd := newOrder(myID, requestToAdd.Floor, requestToAdd.Button, order.SOS_UNCONFIRMED_REQUEST)
-				orderSyncBuffer <- orderToAdd
+
+				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+					localCopy := order.MapClone(orderToSyncMap)
+					localCopy[myID] = orderToAdd
+
+					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: localCopy, TransmittedPeerID: myID}
+				} else {
+					orderSyncBuffer <- orderToAdd
+				}
 
 			case requestToRemove := <-servicedRequest:
 				//log.Printf("OMG I DID AN ORDER!!!")
 				orderToRemove := newOrder(myID, requestToRemove.Floor, requestToRemove.Button, order.SOS_UNCONFIRMED_DELETION)
-				orderSyncBuffer <- orderToRemove
+
+				if orderToSyncMap[myID].OrderState == order.SOS_NONE {
+					localCopy := order.MapClone(orderToSyncMap)
+					localCopy[myID] = orderToRemove
+
+					newOrderStateReceival <- order.OrderStateMessage{OrderToSyncMap: localCopy, TransmittedPeerID: myID}
+				} else {
+					orderSyncBuffer <- orderToRemove
+				}
 
 			case orderToSyncMap = <-newOrderStateTransition:
 				//log.Println("syncOrders orderToSyncMap after state transition: ", orderToSyncMap)

@@ -224,7 +224,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						}
 
 						switch localOrder.OrderState {
-						case order.SOS_UNKNOWN, order.SOS_CONFIRMED_REQUEST, order.SOS_UNCONFIRMED_DELETION, order.SOS_CONFIRMED_DELETION:
+						case order.SOS_NONE, order.SOS_UNKNOWN, order.SOS_CONFIRMED_REQUEST, order.SOS_UNCONFIRMED_DELETION, order.SOS_CONFIRMED_DELETION:
 							if localOrder != incomingOrderToSync {
 								localOrderToSyncMap[key_ID] = incomingOrderToSync
 								localOrder = localOrderToSyncMap[key_ID]
