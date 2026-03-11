@@ -260,7 +260,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 				// Add confirmed order, turn on lights
 				log.Printf("FSM adding confirmedRequest %+v\n", orderToAdd)
 				if orderToAdd.OrderState != order.SOS_CONFIRMED_REQUEST {
-					log.Println("WARNING: FSM attempt to add a non_CONFIRMED_REQUEST order to confirmed request list:", localOrderToSyncMap[peerThatCanAddOrder])
+					log.Println("WARNING: FSM attempt to add a non_CONFIRMED_REQUEST order to confirmed request list:", orderToAdd)
 					break
 				}
 				confirmedRequest <- orderToAdd
