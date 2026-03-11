@@ -114,7 +114,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 					switch incomingOrderToSync.OrderState {
 					case order.SOS_NONE:
 
-						switch localOrderToSyncMap[key_ID].OrderState {
+						switch localOrder.OrderState {
 						case order.SOS_CONFIRMED_REQUEST:
 							// Add confirmed order, turn on lights
 							// TODO: Double-check that the order has state completed
