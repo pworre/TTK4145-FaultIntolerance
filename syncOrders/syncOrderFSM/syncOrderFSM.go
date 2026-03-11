@@ -28,6 +28,8 @@ type acknowledgeBarrier struct {
 
 // Finite state machine loop
 
+
+
 // TODO: Assert that both the fsm localOrderToSyncMap and the syncOrders orderToSyncMap have the same members!
 // TODO: This could probably warrant combining them both into one long file,
 // TODO: but that would make the single file incredibly long and with way too many responsibilities,
