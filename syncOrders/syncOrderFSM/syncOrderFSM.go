@@ -28,7 +28,14 @@ type acknowledgeBarrier struct {
 
 // Finite state machine loop
 
-
+/*
+1 - Button press
+2 - Other peers receive UNCONFIRMED_REQUEST (saves local [localOrderToSyncMap]+ sends ack [iAmAtUnconfirmedRequestBarrier])
+3 - Unconfirmed Request promoted to CONFIRMED_REQUEST [allHaveUnconfirmedRequest] ----> orderToPromote := <-allHaveUnconfirmedRequest
+4 - Confirmed request barrier: allAgreeToAddOrder <- ord
+5 - Order added: orderToAdd := <-allAgreeToAddOrder
+6 - Peers sends SOS_NONE
+*/
 
 // TODO: Assert that both the fsm localOrderToSyncMap and the syncOrders orderToSyncMap have the same members!
 // TODO: This could probably warrant combining them both into one long file,
