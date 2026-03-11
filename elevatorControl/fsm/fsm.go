@@ -112,6 +112,11 @@ func OnNewAssignment(currentState elevator.Elevator, assignment [elevator.N_FLOO
 	servicedRequest chan elevator.ButtonEvent,
 	openDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
+	// ! Avoid re-triggering of door-service when having the same event
+	if assignment == currentState.Requests {
+		return currentState
+	}
+	
 	// Copy of current state
 	nextState := currentState
 	nextState.Requests = assignment

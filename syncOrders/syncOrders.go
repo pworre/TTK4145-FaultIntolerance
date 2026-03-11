@@ -135,6 +135,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			newPeerUpdate := peers.PeerUpdateClone(newPeerUpdateShallowCopy)
 			log.Printf("OMG I HAVE A FRIEND!")
 			activePeersList = newPeerUpdate.Peers
+			for _, lostID := range newPeerUpdate.Lost {
+				delete(allElevatorStates, lostID)
+				delete(ordersConfirmed_CAB, lostID)
+			}
 			// ! Will do for now, but should check if we lose several at a time, because if we lose one by one we can assume we are alone and can still operate, not disconnected ourselves... Maybe
 			if len(activePeersList) == 0 {
 				networkDisconnect <- true
@@ -142,6 +146,9 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 			for _, str := range activePeersList {
 				log.Printf("Peer number: %s", str)
 			}
+
+			// Send new info to HRA when a peer dissapears, since it can affect the HRA-outcome
+			SendConfirmedOrdersToHallAssigner(slices.Clone(ordersConfirmed_HALL), slices.Clone(activePeersList), order.MapClone(allElevatorStates), order.MapClone(ordersConfirmed_CAB), myID, assignEvent)
 
 		default:
 			select {

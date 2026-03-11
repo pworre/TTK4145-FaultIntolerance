@@ -68,13 +68,13 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 			// Update localOrderToSyncMap
 			if newPeerUpdate.New != "" {
 				if !(isKeyInMap(newPeerUpdate.New, localOrderToSyncMap)) {
-					localOrderToSyncMap[newPeerUpdate.New] = order.NewEmptyOrder(newPeerUpdate.New)
+					localOrderToSyncMap[newPeerUpdate.New] = order.NewUnknownOrder(newPeerUpdate.New)
 				}
 			}
 			for _, peerID := range newPeerUpdate.Lost {
 				if isKeyInMap(peerID, localOrderToSyncMap) {
 					delete(localOrderToSyncMap, peerID)
-				}
+				} 
 			}
 			// activePeersList and the localOrderToSyncMap map keys should always have the same elements in them
 
