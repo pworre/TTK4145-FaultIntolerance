@@ -27,6 +27,13 @@ type OrderStateMessage struct {
 	TransmittedPeerID	string
 }
 
+type BarrierKey struct {
+	OwnerID string
+	Floor 	int
+	Button 	int
+	State 	SyncOrderState
+}
+
 func NewOrder(ID string, floor int, button elevator.Button, orderState SyncOrderState) Order {
 	return Order{
 		PeerID:     ID,
@@ -51,6 +58,15 @@ func NewUnknownOrder(id string) Order {
 		OrderFloor: -1,
 		OrderType:  elevator.Button(-1),
 		OrderState: SOS_UNKNOWN,
+	}
+}
+
+func NewBarrierKey(ord Order) BarrierKey {
+	return BarrierKey{
+		OwnerID: ord.PeerID,
+		Floor: ord.OrderFloor,
+		Button: int(ord.OrderType),
+		State: ord.OrderState,
 	}
 }
 

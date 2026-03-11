@@ -91,10 +91,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 	peerUpdateInUnconfirmedDeletionBarrierStateCounter := make(chan peers.PeerUpdate, 1024)
 	//waitForReconnection := make(chan peers.PeerUpdate)
 
-	resetAckListReqBar := make(chan string)
-	resetAckListDelBar := make(chan string)
-	resetAckListUncReqBar := make(chan string)
-	resetAckListUncDelBar := make(chan string)
+	resetAckListReqBar := make(chan order.BarrierKey)
+	resetAckListDelBar := make(chan order.BarrierKey)
+	resetAckListUncReqBar := make(chan order.BarrierKey)
+	resetAckListUncDelBar := make(chan order.BarrierKey)
 
 	// TODO: End channels
 
@@ -207,10 +207,10 @@ func OrderSync(startFloor int, localStateChange <-chan elevator.Elevator, assign
 					} else {
 						select {
 						case nextLocalOrder := <-orderSyncBuffer:
-							resetAckListReqBar <- myID
-							resetAckListDelBar <- myID
-							resetAckListUncReqBar <- myID
-							resetAckListUncDelBar <- myID
+							resetAckListReqBar <- order.NewBarrierKey(order.NewEmptyOrder(myID))
+							resetAckListDelBar <- order.NewBarrierKey(order.NewEmptyOrder(myID))
+							resetAckListUncReqBar <- order.NewBarrierKey(order.NewEmptyOrder(myID))
+							resetAckListUncDelBar <- order.NewBarrierKey(order.NewEmptyOrder(myID))
 							copyMap[myID] = nextLocalOrder
 
 							newOrderStateReceival <- order.OrderStateMessage{
