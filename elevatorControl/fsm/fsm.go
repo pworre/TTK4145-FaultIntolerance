@@ -260,30 +260,32 @@ func OnDoorTimeout(currentState elevator.Elevator,
 	// State transformation and action outputs via message passing to main
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
+		// ! clearing first when door times out, then check if we should keep it open
+		shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+		
+		if shouldClearUpButton {
+			servicedRequest <- elevator.ButtonEvent{
+				Floor:  nextState.Floor,
+				Button: elevator.B_HallUp}
+		}
+		if shouldClearDownButton {
+			servicedRequest <- elevator.ButtonEvent{
+				Floor:  nextState.Floor,
+				Button: elevator.B_HallDown}
+		}
+		if shouldClearCabButton {
+			servicedRequest <- elevator.ButtonEvent{
+				Floor:  nextState.Floor,
+				Button: elevator.B_Cab}
+		}
+
+		nextState = requests.ClearAtCurrentFloor(nextState)
+		
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
 
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-
-			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
-			if shouldClearUpButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_HallUp}
-			}
-			if shouldClearDownButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_HallDown}
-			}
-			if shouldClearCabButton {
-				servicedRequest <- elevator.ButtonEvent{
-					Floor:  nextState.Floor,
-					Button: elevator.B_Cab}
-			}
-
-			nextState = requests.ClearAtCurrentFloor(nextState)
 			stillActive <- true
 
 		case elevator.EB_Moving:
@@ -333,10 +335,17 @@ func OnObstructionEvent(currentState elevator.Elevator, isObstructed bool,
 	keepDoorOpen chan bool, keepObstructed chan bool) elevator.Elevator {
 	nextState := currentState
 
-	if nextState.Behaviour == elevator.EB_DoorOpen && isObstructed {
-		keepDoorOpen <- true
-		keepObstructed <- true
+	if nextState.Behaviour != elevator.EB_DoorOpen {
+		return nextState
 	}
 
+	if isObstructed {
+		keepDoorOpen <- true
+		keepObstructed <- true
+		return nextState
+	}
+
+	// obstruction is cleared: restart door timing by reopen
+	keepDoorOpen <- true
 	return nextState
 }

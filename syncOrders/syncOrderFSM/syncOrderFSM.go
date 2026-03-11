@@ -186,7 +186,7 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 						case order.SOS_NONE:
 							localOrderToSyncMap[key_ID] = incomingOrderToSync
 
-							log.Printf("Peer %s sending UNCONFIRMED REQUEST ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
+							log.Printf("Peer %s sending UNCONFIRMED DELETION ACK for owner %s from sender %s\n", myID, key_ID, incomingID)
 							iAmAtUnconfirmedDeleteBarrier <- acknowledgeBarrier{ownerID: key_ID, ackID: myID}
 
 						case order.SOS_UNCONFIRMED_DELETION:
