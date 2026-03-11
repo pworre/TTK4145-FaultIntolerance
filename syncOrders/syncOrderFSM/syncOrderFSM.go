@@ -133,18 +133,24 @@ func StateMachineLoop(myID string, newOrderStateTransition chan map[string]order
 
 						switch localOrder.OrderState {
 						case order.SOS_CONFIRMED_REQUEST:
-							if rememberedOrder.OrderState == order.SOS_CONFIRMED_REQUEST {
-								confirmedRequest <- localOrder
-								updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
-								changed = true
-							}
+							/*
+							if rememberedOrder.OrderState != order.SOS_CONFIRMED_REQUEST {
+								break
+							}*/
+							confirmedRequest <- rememberedOrder
+							delete(lastConfirmedOrderMap, key_ID)
+							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
+							changed = true
 
 						case order.SOS_CONFIRMED_DELETION:
-							if rememberedOrder.OrderState == order.SOS_CONFIRMED_DELETION {
-								confirmedDeletion <- localOrder
-								updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
-								changed = true
-							}
+							/*
+							if rememberedOrder.OrderState != order.SOS_CONFIRMED_DELETION {
+								break
+							}*/
+							confirmedDeletion <- localOrder
+							delete(lastConfirmedOrderMap, key_ID)
+							updateOrderStateInMap(localOrderToSyncMap, key_ID, order.SOS_NONE)
+							changed = true
 
 						default:
 							log.Println(incomingID, " told us they have no orders, and we dont care.")
