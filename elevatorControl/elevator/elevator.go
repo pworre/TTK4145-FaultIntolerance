@@ -2,6 +2,7 @@ package elevator
 
 import (
 	"elevatorDriver/elevio"
+	"slices"
 )
 
 const N_FLOORS = 4
@@ -36,18 +37,14 @@ const (
 	EB_Moving   = 2
 )
 
+// TODO: Consider moving the order struct out into syncOrders, and not have it be part of the elevator.
+// TODO: Almost certain this is better, and shouldnt take too long.
 type Order struct {
 	Placed  bool
 	Version uint16
 	Unknown bool
 	AckList []string
 }
-
-// TODO: Create a barrier in syncOrders,
-// TODO: and when you check if we have reached the barrier (for that specific order),
-// TODO: you simply compare that orders AckList to the activePeersList,
-// TODO: and then you know that all peers are at the barrier,
-// TODO: and you can safely turn on the lights
 
 type Elevator struct {
 	Floor     int
@@ -119,6 +116,42 @@ func ExtractOrderPlacementTable(requests [N_FLOORS][N_BUTTONS]Order) [N_FLOORS][
 		}
 	}
 	return placements
+}
+
+func MergeAckLists(firstAckList []string, secondAckList []string) []string {
+	mergeList := []string{}
+	for _, ID := range firstAckList {
+		mergeList = append(mergeList, ID)
+	}
+	for _, ID := range secondAckList {
+		if !isElementInList(ID, firstAckList) {
+			mergeList = append(mergeList, ID)
+		}
+	}
+	return mergeList
+}
+
+func isElementInList(elem string, list []string) bool {
+	for _, listElem := range list {
+		if elem == listElem {
+			return true
+		}
+	}
+	return false
+}
+
+func ContainSameElements(firstList []string, secondList []string) bool {
+	if len(firstList) != len(secondList) {
+		return false
+	}
+	// Must take copies as to not modify the original slices
+	firstListCopy := slices.Clone(firstList)
+	secondListCopy := slices.Clone(secondList)
+
+	slices.Sort(firstListCopy)
+	slices.Sort(secondListCopy)
+
+	return slices.Equal(firstListCopy, secondListCopy)
 }
 
 // These functions exist to maintain that all interactions with the psysical world go through the elevator module,
