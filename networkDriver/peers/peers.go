@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 	"time"
+	"log"
 )
 
 // Change in a set of known peers on the network
@@ -51,13 +52,15 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 //
 // PARAMS: 
 // port = 
-func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
+func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 
 	var buf [1024]byte
 	var p PeerUpdate
 	lastSeen := make(map[string]time.Time)
 
 	conn := conn.DialBroadcastUDP(port)
+
+	log.Printf("Receiver listening on port %d", port)
 
 	for {
 		updated := false
@@ -66,6 +69,10 @@ func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
 		n, _, _ := conn.ReadFrom(buf[0:])
 
 		id := string(buf[:n])
+
+		if id == myID {
+			continue
+		}
 
 		// Adding new connection
 		p.New = ""

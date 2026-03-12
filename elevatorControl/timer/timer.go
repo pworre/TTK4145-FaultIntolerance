@@ -13,16 +13,28 @@ func initTimers() (*time.Timer, *time.Timer) {
 	return doorTimer, inactivityTimer
 }
 
-func Timers(stopInactivityTimer chan bool, resetDoorTimer chan bool, doorTimeout chan bool) {
+func Timers(resetDoorTimer chan bool, resetInactivityTimer chan bool, doorTimeout chan bool, inactivityTimeout chan bool) {
 	doorTimer, inactivityTimer := initTimers()
 	for {
 		select {
-		case <-stopInactivityTimer:
-			inactivityTimer.Stop()
 		case <-resetDoorTimer:
-			doorTimer.Reset(DOOR_OPEN_DURATION)
+			safeReset(doorTimer, DOOR_OPEN_DURATION)
+		case <-resetInactivityTimer:
+			safeReset(inactivityTimer, INACTIVITY_TIMEOUT)
 		case <-doorTimer.C:
 			doorTimeout <- true
+		case <-inactivityTimer.C:
+			inactivityTimeout <- true
 		}
 	}
+}
+
+func safeReset(timer *time.Timer, duration time.Duration) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(duration)
 }

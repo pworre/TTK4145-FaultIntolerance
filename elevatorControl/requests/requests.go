@@ -6,7 +6,7 @@ import "elevatorControl/elevator"
 func requestsAbove(e elevator.Elevator) bool {
 	for f := e.Floor + 1; f < elevator.N_FLOORS; f++ {
 		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-			if e.Requests[f][btn] {
+			if e.Requests[f][btn].Placed {
 				return true
 			}
 		}
@@ -17,7 +17,7 @@ func requestsAbove(e elevator.Elevator) bool {
 func requestsBelow(e elevator.Elevator) bool {
 	for f := 0; f < e.Floor; f++ {
 		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-			if e.Requests[f][btn] {
+			if e.Requests[f][btn].Placed {
 				return true
 			}
 		}
@@ -27,7 +27,7 @@ func requestsBelow(e elevator.Elevator) bool {
 
 func requestsHere(e elevator.Elevator) bool {
 	for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-		if e.Requests[e.Floor][btn] {
+		if e.Requests[e.Floor][btn].Placed {
 			return true
 		}
 	}
@@ -77,13 +77,13 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 func ShouldStop(e elevator.Elevator) bool {
 	switch e.Direction {
 	case elevator.D_Down:
-		return e.Requests[e.Floor][elevator.B_HallDown] ||
-			e.Requests[e.Floor][elevator.B_Cab] ||
+		return e.Requests[e.Floor][elevator.B_HallDown].Placed ||
+			e.Requests[e.Floor][elevator.B_Cab].Placed ||
 			!requestsBelow(e)
 
 	case elevator.D_Up:
-		return e.Requests[e.Floor][elevator.B_HallUp] ||
-			e.Requests[e.Floor][elevator.B_Cab] ||
+		return e.Requests[e.Floor][elevator.B_HallUp].Placed ||
+			e.Requests[e.Floor][elevator.B_Cab].Placed ||
 			!requestsAbove(e)
 
 	case elevator.D_Stop:
@@ -102,6 +102,15 @@ func ShouldClearImmediately(e elevator.Elevator, btnFloor int, btnType elevator.
 			(btnType == elevator.B_Cab))
 }
 
+func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool, bool) {
+	shouldClearUpButton := ShouldClearImmediately(e, e.Floor, elevator.B_HallUp)
+	shouldClearDownButton := ShouldClearImmediately(e, e.Floor, elevator.B_HallDown)
+	shouldClearCabButton := ShouldClearImmediately(e, e.Floor, elevator.B_Cab)
+
+	return shouldClearUpButton, shouldClearDownButton, shouldClearCabButton
+}
+
+/*
 func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	e.Requests[e.Floor][elevator.B_Cab] = false
 	switch e.Direction {
@@ -124,3 +133,4 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 	
 	return e
 }
+*/

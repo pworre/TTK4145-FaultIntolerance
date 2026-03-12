@@ -3,63 +3,157 @@ package fsm
 import (
 	"elevatorControl/elevator"
 	"elevatorControl/requests"
+	"fmt"
+	"log"
 )
 
 // Finite state machine loop
 
 func StateMachineLoop(startFloor int,
-	requestEvent chan elevator.ButtonEvent, floorEvent chan int,
-	doorTimeout chan bool, setFloorIndicator chan int,
-	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	buttonEvent chan elevator.ButtonEvent,
+	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order,
+	localRequest chan elevator.ButtonEvent,
+	localClearing chan elevator.ButtonEvent,
+	floorEvent chan int, setFloorIndicator chan int,
 	changeMotorDirection chan elevator.MotorDirection,
-	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool) {
+	openDoor chan bool, closeDoor chan bool,
+	keepDoorOpen chan bool, doorTimeout chan bool,
+	obstructionEvent chan bool, inactivityTimeout chan bool,
+	stillActive chan bool, localStateChange chan elevator.Elevator) {
 
-	elevator := elevator.NewStartElevator(startFloor)
+	elev := elevator.NewStartElevator(startFloor)
 
 	for {
+		newState := elev
 		select {
-		case newRequest := <-requestEvent:
-			elevator = OnRequestButtonPress(elevator, newRequest.Floor, newRequest.Button, setLights, changeMotorDirection, openDoor, keepDoorOpen)
+		case buttonPressed := <-buttonEvent:
+			log.Println("Someone pressed a button")
+			newState = OnButtonPress(elev, buttonPressed.Floor, buttonPressed.Button, localRequest, keepDoorOpen, stillActive)
+
+		case newAssignment := <-assignEvent:
+			fmt.Println("I got a new assignment!", newAssignment)
+			newState = OnNewAssignment(elev, newAssignment, localClearing, changeMotorDirection, openDoor, keepDoorOpen, stillActive)
 
 		case newFloor := <-floorEvent:
-			elevator = OnFloorArrival(elevator, newFloor, setFloorIndicator, setLights, changeMotorDirection, openDoor)
+			newState = OnFloorArrival(elev, newFloor, setFloorIndicator, localClearing, changeMotorDirection, openDoor, stillActive)
 
 		case <-doorTimeout:
-			elevator = OnDoorTimeout(elevator, setLights, changeMotorDirection, closeDoor, keepDoorOpen)
+			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, closeDoor, keepDoorOpen, stillActive)
+
+		//Debugging, so for now, no obstruction:
+		//case isObstructed := <-obstructionEvent:
+		//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
+
+		case <-inactivityTimeout:
+			// TODO: Implement this
+			/* Debugging
+			if len(peersRx_state) > 1 {
+				os.Exit(2)
+			} else {
+				stillActive <- true
+			}
+			*/
+			stillActive <- true
+
 		}
+
+		// Maybe a guard here so it doesnt fire every single time, even without changes
+		if elevator.ExtractCabOrderPlacements(newState.Requests) != elevator.ExtractCabOrderPlacements(elev.Requests) {
+			localStateChange <- newState //  Pretty sure this channel should be buffered
+		}
+		elev = newState
+
 	}
 }
 
 // Event handling functions
 
-func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
-						  setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-						  changeMotorDirection chan elevator.MotorDirection,
-						  openDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
+	localRequest chan elevator.ButtonEvent, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
-	// Copy of current state
 	nextState := currentState
 
-	// State transformation and action outputs via message passing to main
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
 		if requests.ShouldClearImmediately(nextState, btnFloor, btnType) {
 			keepDoorOpen <- true
+			stillActive <- true
 		} else {
-			nextState.Requests[btnFloor][btnType] = true
+			// Add request to worldview
+			localRequest <- elevator.ButtonEvent{btnFloor, btnType}
+			// TODO: Også oppdatere local ordreliste
+		}
+
+	default:
+		// Add request to worldview
+		localRequest <- elevator.ButtonEvent{btnFloor, btnType}
+	}
+
+	return nextState
+}
+
+func OnNewAssignment(currentState elevator.Elevator,
+	assignment [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order,
+	localClearing chan elevator.ButtonEvent,
+	changeMotorDirection chan elevator.MotorDirection,
+	openDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
+
+	nextState := currentState
+	nextState.Requests = assignment
+	log.Printf("FSM before assignment: %+v", elevator.ExtractOrderPlacementTable(currentState.Requests))
+	log.Printf("FSM got assignment: %+v", elevator.ExtractOrderPlacementTable(assignment))
+
+	switch nextState.Behaviour {
+	case elevator.EB_DoorOpen:
+
+		shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+
+		if shouldClearUpButton {
+			keepDoorOpen <- true
+			stillActive <- true
+			// Clear request from worldview
+			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+		}
+		if shouldClearDownButton {
+			keepDoorOpen <- true
+			stillActive <- true
+			// Clear request from worldview
+			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+		}
+		if shouldClearCabButton {
+			keepDoorOpen <- true
+			stillActive <- true
+			// Clear request from worldview
+			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
 		}
 
 	case elevator.EB_Moving:
-		nextState.Requests[btnFloor][btnType] = true
 
 	case elevator.EB_Idle:
-		nextState.Requests[btnFloor][btnType] = true
+
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
 
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			openDoor <- true
-			nextState = requests.ClearAtCurrentFloor(nextState)
+
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+
+			if shouldClearUpButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			}
+			if shouldClearDownButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
+			if shouldClearCabButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+			}
 
 		case elevator.EB_Moving:
 			changeMotorDirection <- nextState.Direction
@@ -68,22 +162,17 @@ func OnRequestButtonPress(currentState elevator.Elevator, btnFloor int, btnType 
 		}
 	}
 
-	setLights <- nextState.Requests
-
-	// Return transformed state
 	return nextState
 }
 
-func OnFloorArrival(currentState elevator.Elevator, newFloor int,
-					setFloorIndicator chan int,
-					setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-					changeMotorDirection chan elevator.MotorDirection,
-					openDoor chan bool) elevator.Elevator {
+func OnFloorArrival(currentState elevator.Elevator,
+	newFloor int, setFloorIndicator chan int,
+	localClearing chan elevator.ButtonEvent,
+	changeMotorDirection chan elevator.MotorDirection,
+	openDoor chan bool, stillActive chan bool) elevator.Elevator {
 
-	// Copy of current state
 	nextState := currentState
 
-	// State transformation and action outputs via message passing to main
 	nextState.Floor = newFloor
 	setFloorIndicator <- newFloor
 
@@ -92,25 +181,39 @@ func OnFloorArrival(currentState elevator.Elevator, newFloor int,
 		if requests.ShouldStop(nextState) {
 			changeMotorDirection <- elevator.D_Stop
 			openDoor <- true
-			nextState = requests.ClearAtCurrentFloor(nextState)
-			setLights <- nextState.Requests
+
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+
+			if shouldClearUpButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			}
+			if shouldClearDownButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
+			if shouldClearCabButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+			}
+
 			nextState.Behaviour = elevator.EB_DoorOpen
 		}
 	}
 
-	// Return transformed state
 	return nextState
 }
 
 func OnDoorTimeout(currentState elevator.Elevator,
-				   setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-				   changeMotorDirection chan elevator.MotorDirection,
-				   closeDoor chan bool, keepDoorOpen chan bool) elevator.Elevator {
+	localClearing chan elevator.ButtonEvent,
+	changeMotorDirection chan elevator.MotorDirection,
+	closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
-	// Copy of current state
 	nextState := currentState
 
-	// State transformation and action outputs via message passing to main
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:
 		nextState.Direction, nextState.Behaviour = requests.ChooseDirection(nextState)
@@ -118,9 +221,25 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-			nextState = requests.ClearAtCurrentFloor(nextState)
-			setLights <- nextState.Requests
-			
+
+			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
+
+			if shouldClearUpButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			}
+			if shouldClearDownButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			}
+			if shouldClearCabButton {
+				stillActive <- true
+				// Clear request from worldview
+				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+			}
+
 		case elevator.EB_Moving:
 			closeDoor <- true
 			changeMotorDirection <- nextState.Direction
@@ -131,6 +250,5 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		}
 	}
 
-	// Return transformed state
 	return nextState
 }
