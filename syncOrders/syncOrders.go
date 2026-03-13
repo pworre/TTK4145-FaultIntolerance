@@ -399,8 +399,10 @@ func extractConfirmedPlacements(newWorldView WorldView, lastConfirmedPlacements 
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS; button++ {
-			if elevator.ContainSameElements(newWorldView.ElevatorState.Requests[floor][button].AckList, requiredAcks) {
-				newConfirmedPlacements[floor][button] = true
+			order := newWorldView.ElevatorState.Requests[floor][button]
+
+			if elevator.ContainSameElements(order.AckList, requiredAcks) {
+				newConfirmedPlacements[floor][button] = order.Placed
 			} else {
 				newConfirmedPlacements[floor][button] = lastConfirmedPlacements[floor][button]
 			}
