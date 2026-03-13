@@ -5,6 +5,7 @@ import (
 	"elevatorControl/requests"
 	"fmt"
 	"log"
+	"os"
 )
 
 // Finite state machine loop
@@ -18,8 +19,11 @@ func StateMachineLoop(startFloor int,
 	changeMotorDirection chan elevator.MotorDirection,
 	openDoor chan bool, closeDoor chan bool,
 	keepDoorOpen chan bool, doorTimeout chan bool,
-	obstructionEvent chan bool, inactivityTimeout chan bool,
-	stillActive chan bool, localStateChange chan elevator.Elevator) {
+	obstructionEvent chan bool, motorStallEvent chan bool,
+	inactivityTimeout chan bool, stillActive chan bool,
+	localStateChange chan elevator.Elevator, activePeersChan <-chan []string) {
+
+	var allPeersStillActive []string
 
 	elev := elevator.NewStartElevator(startFloor)
 
@@ -44,16 +48,25 @@ func StateMachineLoop(startFloor int,
 		//case isObstructed := <-obstructionEvent:
 		//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
 
+		case updatedActivePeers := <-activePeersChan: // Timing logic incase of only one peer active
+			allPeersStillActive = updatedActivePeers
 		case <-inactivityTimeout:
-			// TODO: Implement this
-			/* Debugging
-			if len(peersRx_state) > 1 {
+
+			if len(allPeersStillActive) > 1 {
 				os.Exit(2)
 			} else {
 				stillActive <- true
 			}
-			*/
+
 			stillActive <- true
+
+		case <-motorStallEvent:
+
+			if len(allPeersStillActive) > 1 {
+				os.Exit(2)
+			} else {
+				stillActive <- true
+			}
 
 		}
 

@@ -37,6 +37,7 @@ func main() {
 	floorEvent := make(chan int)
 	doorTimeout := make(chan bool)
 	inactivityTimeout := make(chan bool)
+	motorStallTimeout := make(chan bool)
 
 	// Output message channels for performing actions on elevator hardware
 	setFloorIndicator := make(chan int)
@@ -50,6 +51,7 @@ func main() {
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
 	resetInactivityTimer := make(chan bool)
+	resetMotorStallTimer := make(chan bool)
 	//resetObstructionTimer := make(chan bool)
 
 	// Channels for orders
@@ -63,16 +65,16 @@ func main() {
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
 	peerUpdate := make(chan peers.PeerUpdate, 512)
-
+	allActivePeers := make(chan []string, 1)
 	// - - - - - - Deploying network communication and order synchronization - - - - - -
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
-	go timer.Timers(resetDoorTimer, resetInactivityTimer, doorTimeout, inactivityTimeout)
+	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
 	// ! For debugging, obstruction is not yet implemented
@@ -83,13 +85,14 @@ func main() {
 		assignEvent, localRequest, localClearing,
 		floorEvent, setFloorIndicator, changeMotorDirection,
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
-		obstructionEvent, inactivityTimeout, stillActive, localStateChange)
+		obstructionEvent, motorStallTimeout, inactivityTimeout, stillActive, localStateChange, allActivePeers)
 
 	// Hardware action handling
 	for {
 		select {
 		case newFloor := <-setFloorIndicator:
 			elevator.FloorIndicator(newFloor)
+			resetMotorStallTimer <- true
 
 		case requestList := <-setLights:
 			elevator.SetAllLights(requestList)
