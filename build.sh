@@ -14,11 +14,15 @@ X_PORT=1567
 echo "Updating submodules..."
 git submodule update --init --recursive
 
+cd external/Project-resources/cost_fns/hall_request_assigner
+
+echo "Updating submodule for D-compiler"
+git submodule update --init --recursive
+
 echo "Making hall_request_assigner build script executable..."
-chmod +x ./external/Project-resources/cost_fns/hall_request_assigner/build.sh
+chmod +x build.sh
 
 echo "Building hall_request_assigner..."
-cd external/Project-resources/cost_fns/hall_request_assigner
 ./build.sh ../../../../elevatorControl/hallRequestAssigner
 cd ../../../..
 
