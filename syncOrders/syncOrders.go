@@ -393,9 +393,13 @@ func needToAssignAgain(newWorldView WorldView, oldWorldView WorldView, lastConfi
 // and uses the lastConfirmedPlacements for all the rest (That dont have a full AckList)
 func extractConfirmedPlacements(newWorldView WorldView, lastConfirmedPlacements [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersList []string) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
 	newConfirmedPlacements := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
+
+	requiredAcks := append([]string{}, activePeersList...)
+	requiredAcks = append(requiredAcks, newWorldView.PeerID)
+
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS; button++ {
-			if elevator.ContainSameElements(newWorldView.ElevatorState.Requests[floor][button].AckList, activePeersList) {
+			if elevator.ContainSameElements(newWorldView.ElevatorState.Requests[floor][button].AckList, requiredAcks) {
 				newConfirmedPlacements[floor][button] = true
 			} else {
 				newConfirmedPlacements[floor][button] = lastConfirmedPlacements[floor][button]
