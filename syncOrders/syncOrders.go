@@ -68,7 +68,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				myWorldView.ElevatorState.Requests[request.Floor][request.Button].Version += 1
 			}
 
-			assignOrders(myWorldView, peerStates, peerCabOrders, assignEvent)
+			//assignOrders(myWorldView, peerStates, peerCabOrders, assignEvent)
 
 		case request := <-localClearing:
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Placed = false
