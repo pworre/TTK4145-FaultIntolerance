@@ -52,6 +52,8 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 	activePeersList := []string{}
 	peerStates := make(map[string]elevator.Elevator)
 	peerCabOrders := make(map[string][elevator.N_FLOORS]elevator.Order)
+	lostPeerBackupStates := make(map[string]WorldView)
+
 	newConfirmedPlacements := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
 	lastConfirmedPlacements := newConfirmedPlacements
 
@@ -133,13 +135,42 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			*/
 
 		case newPeerUpdate := <-peerUpdate:
+			oldActivePeerList := activePeersList
+			newActivePeerList := newPeerUpdate.Peers
+
+			for _, id := range newActivePeerList {
+				// Check if new peer
+				if !slices.Contains(oldActivePeerList, id) {
+					if backup, exists := lostPeerBackupStates[id]; exists {
+						// Retrieve backup
+						peerStates[id] = backup.ElevatorState
+						peerCabOrders[id] = backup.CabOrders
+
+						delete(lostPeerBackupStates, id)
+					}
+				}
+
+			}
 			activePeersList = newPeerUpdate.Peers
+			// Save backup for lost peers
 			for _, lostID := range newPeerUpdate.Lost {
+
+				lostPeerBackupStates[lostID] = WorldView{
+					PeerID:        lostID,
+					ElevatorState: peerStates[lostID],
+					CabOrders:     peerCabOrders[lostID],
+				}
+
+				// ? Blir lostID aldri overskrepet: så vi mister aldri listen?
+				// TODO: Legg til at vi fjerner fra mapet hvis reconnect
 				delete(peerStates, lostID)
+				delete(peerCabOrders, lostID)
+
 			}
 
 			if len(activePeersList) == 0 {
 				//networkDisconnect <- true // ? Maybe this is not needed at all...?
+				// ! NO NEED FOR DISCONNECT !!!! WE JUST NEED TO OPERATE WITH JUST US AT THE ACTIVEPEERLIST FOR HRA AND TAKE ALL ORDERS
 				for floor := 0; floor < elevator.N_FLOORS; floor++ {
 					for button := 0; button < elevator.N_BUTTONS; button++ {
 						myWorldView.ElevatorState.Requests[floor][button].Unknown = true
