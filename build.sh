@@ -22,9 +22,6 @@ cd external/Project-resources/cost_fns/hall_request_assigner
 ./build.sh ../../../../elevatorControl/hallRequestAssigner
 cd ../../../..
 
-echo "Installing hall_request_assigner..."
-./external/Project-resources/cost_fns/hall_request_assigner/build.sh ./elevatorcontrol/hallRequestAssigner/
-
 echo "Starting elevator server..."
 elevatorserver --port=$X_PORT &
 
