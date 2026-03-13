@@ -371,11 +371,12 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
-		for button := 0; button < elevator.N_BUTTONS; button++ {
+		for button := 0; button < elevator.N_BUTTONS-1; button++ {
 			newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
 			newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
 			newAssignment[floor][button].Unknown = false
 		}
+		newAssignment[floor][elevator.B_Cab] = myWorldView.ElevatorState.Requests[floor][elevator.B_Cab]
 	}
 
 	log.Printf("assignOrders: worldview placements = %+v", elevator.ExtractOrderPlacementTable(myWorldView.ElevatorState.Requests))
