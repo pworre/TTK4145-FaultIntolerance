@@ -61,7 +61,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case request := <-localRequest:
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Placed = true
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Unknown = false
-			myWorldView.ElevatorState.Requests[request.Floor][request.Button].AckList = []string{}
+			myWorldView.ElevatorState.Requests[request.Floor][request.Button].AckList = []string{myID}
 			if request.Button == elevator.B_Cab {
 				myWorldView.ElevatorState.Requests[request.Floor][request.Button].Version = BARRIER
 			} else {
@@ -71,7 +71,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case request := <-localClearing:
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Placed = false
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Unknown = false
-			myWorldView.ElevatorState.Requests[request.Floor][request.Button].AckList = []string{}
+			myWorldView.ElevatorState.Requests[request.Floor][request.Button].AckList = []string{myID}
 			if request.Button == elevator.B_Cab {
 				myWorldView.ElevatorState.Requests[request.Floor][request.Button].Version = BARRIER
 			} else {
@@ -153,16 +153,18 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case incomingWorldView := <-networkRx:
 			log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
 
+			// Ignore my own rebroadcasts
+			if incomingWorldView.PeerID == myID {
+				break
+			}
+
 			// Ignore messages if we have not yet gotten the peerUpdate
 			if !slices.Contains(activePeersList, incomingWorldView.PeerID) {
 				log.Printf("Discarded worldview from %q because activePeersList=%v",
 					incomingWorldView.PeerID, activePeersList)
 				break
 			}
-			// We throw away messages from ourselves
-			if myID == incomingWorldView.PeerID {
-				break
-			}
+
 			fmt.Printf("I am receiving a worldview from someone else: %+v", incomingWorldView)
 
 			// Be aware! We need this for the hallrequestassigner, but we should not trust their requests as our own,
@@ -227,14 +229,14 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 							// Before we were in the middle of either clearing an order or adding one,
 							// we have now started either a new adding or a new clearing, and must clear the acklist and increment the version
 							newWorldView.ElevatorState.Requests[floor][button].Version += 1
-							newWorldView.ElevatorState.Requests[floor][button].AckList = []string{}
+							newWorldView.ElevatorState.Requests[floor][button].AckList = []string{myID}
 
 						} else if localHallOrder.Version < incomingHallOrder.Version {
 							// Accept orders that are newer than us
 							log.Println("I got convinced by someone else")
 							newWorldView.ElevatorState.Requests[floor][button].Placed = incomingHallOrder.Placed
 							newWorldView.ElevatorState.Requests[floor][button].Version = incomingHallOrder.Version
-							newWorldView.ElevatorState.Requests[floor][button].AckList = elevator.MergeAckLists(newWorldView.ElevatorState.Requests[floor][button].AckList, incomingHallOrder.AckList)
+							newWorldView.ElevatorState.Requests[floor][button].AckList = elevator.MergeAckLists(incomingHallOrder.AckList, []string{myID})
 							newWorldView.ElevatorState.Requests[floor][button].Version += 1 // ! Needed because we have the merged AckList now
 						}
 
