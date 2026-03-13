@@ -131,7 +131,9 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				confirmedOrders := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 				for floor := 0; floor < elevator.N_FLOORS; floor++ {
 					for button := 0; button < elevator.N_BUTTONS; button++ {
-						confirmedOrders[floor][button].Placed = true
+						//confirmedOrders[floor][button].Placed = true
+						confirmedOrders[floor][button].Placed = newConfirmedPlacements[floor][button]
+						confirmedOrders[floor][button].Unknown = false
 					}
 				}
 
@@ -177,22 +179,57 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			// Caborder updating
 			unknownCount := 0
 			for floor := 0; floor < elevator.N_FLOORS; floor++ {
-				incomingCabOrder := incomingWorldView.ElevatorState.Requests[floor][elevator.N_BUTTONS-1]
+				incomingCabOrder := incomingWorldView.CabOrders[floor]
+				localCabOrder := newWorldView.CabOrders[floor]
+
 				if incomingCabOrder.Unknown {
 					unknownCount++
 					continue
-				} else {
-					if newWorldView.ElevatorState.Requests[floor][elevator.N_BUTTONS-1].Unknown {
-						newWorldView.ElevatorState.Requests[floor][elevator.N_BUTTONS-1] = incomingCabOrder
-					}
 				}
+
+				if incomingCabOrder.Version != BARRIER {
+					continue
+				}
+
+				if localCabOrder.Unknown {
+					newWorldView.CabOrders[floor] = incomingCabOrder
+					newWorldView.CabOrders[floor].AckList = addAck(newWorldView.CabOrders[floor].AckList, myID)
+					newWorldView.CabOrders[floor].Unknown = false
+					continue
+				}
+
+				// At same BARRIER state: merge ack only
+				if localCabOrder.Version == BARRIER && localCabOrder.Placed == incomingCabOrder.Placed {
+					newWorldView.CabOrders[floor].Placed = incomingCabOrder.Placed
+					newWorldView.CabOrders[floor].Version = BARRIER
+					newWorldView.CabOrders[floor].Unknown = false
+					newWorldView.CabOrders[floor].AckList = elevator.MergeAckLists(localCabOrder.AckList, incomingCabOrder.AckList)
+					newWorldView.CabOrders[floor].AckList = addAck(newWorldView.CabOrders[floor].AckList, myID)
+					continue
+				}
+
+				if localCabOrder.Version != BARRIER {
+					newWorldView.CabOrders[floor] = incomingCabOrder
+					newWorldView.CabOrders[floor].AckList = addAck(newWorldView.CabOrders[floor].AckList, myID)
+					newWorldView.CabOrders[floor].Unknown = false
+					continue
+				}
+
+				// BOTH ARE BARRIER BUT DISAGREE ON PLACED: DO SAFEST AND DO IT AT LEAST ONCE
+				newWorldView.CabOrders[floor] = incomingCabOrder
+				newWorldView.CabOrders[floor].AckList = addAck(newWorldView.CabOrders[floor].AckList, myID)
+				newWorldView.CabOrders[floor].Unknown = false
 			}
+			peerCabOrders[incomingWorldView.PeerID] = incomingWorldView.CabOrders
+
 			// Slightly ugly, but necessary maintaining of the CabOrders map in myWorldView
 			if unknownCount > 0 && unknownCount != elevator.N_FLOORS {
 				log.Println("Something weird has happened, either all or no orders should be unknown at the same time")
 			}
 			if unknownCount == 0 {
 				peerCabOrders[incomingWorldView.PeerID] = elevator.ExtractCabOrders(incomingWorldView.ElevatorState.Requests)
+				log.Printf("Extracted cab-orders from peer %s", incomingWorldView.PeerID)
+				log.Printf("CabOrders received: %+v", peerCabOrders[incomingWorldView.PeerID])
 			}
 
 			// Hallorder synchronization
@@ -213,9 +250,11 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 						//newWorldView.ElevatorState.Requests[floor][button].Unknown = false
 					} else {
 						if incomingHallOrder.Version >= BARRIER {
+							//peerscabOrder := incomingWorldView.CabOrders
 							newWorldView.ElevatorState.Requests[floor][button].Placed = incomingHallOrder.Placed
 							newWorldView.ElevatorState.Requests[floor][button].AckList = incomingHallOrder.AckList
 							newWorldView.ElevatorState.Requests[floor][button].Version = BARRIER
+
 							// TODO: Some kind of barrier counting logic, to get all peers to the barrier
 						} else if localHallOrder.Version > incomingHallOrder.Version {
 							// Ignore orders coming in that are older than you
@@ -371,10 +410,11 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
-		for button := 0; button < elevator.N_BUTTONS-1; button++ {
+		for button := 0; button < elevator.N_BUTTONS; button++ {
 			newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
 			newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
 			newAssignment[floor][button].Unknown = false
+			newAssignment[floor][button].AckList = myWorldView.ElevatorState.Requests[floor][button].AckList
 		}
 		newAssignment[floor][elevator.B_Cab] = myWorldView.ElevatorState.Requests[floor][elevator.B_Cab]
 	}
@@ -399,7 +439,7 @@ func extractConfirmedPlacements(newWorldView WorldView, lastConfirmedPlacements 
 	requiredAcks = append(requiredAcks, newWorldView.PeerID)
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
-		for button := 0; button < elevator.N_BUTTONS; button++ {
+		for button := 0; button < elevator.N_BUTTONS-1; button++ {
 			order := newWorldView.ElevatorState.Requests[floor][button]
 
 			if elevator.ContainSameElements(order.AckList, requiredAcks) {
@@ -408,6 +448,14 @@ func extractConfirmedPlacements(newWorldView WorldView, lastConfirmedPlacements 
 				newConfirmedPlacements[floor][button] = lastConfirmedPlacements[floor][button]
 			}
 		}
+		newConfirmedPlacements[floor][elevator.N_BUTTONS-1] = newWorldView.CabOrders[floor].Placed
 	}
 	return newConfirmedPlacements
+}
+
+func addAck(ackList []string, id string) []string {
+	if !slices.Contains(ackList, id) {
+		return append(ackList, id)
+	}
+	return ackList
 }
