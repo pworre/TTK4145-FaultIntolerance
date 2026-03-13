@@ -235,7 +235,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 							newWorldView.ElevatorState.Requests[floor][button].Placed = incomingHallOrder.Placed
 							newWorldView.ElevatorState.Requests[floor][button].Version = incomingHallOrder.Version
 							newWorldView.ElevatorState.Requests[floor][button].AckList = elevator.MergeAckLists(newWorldView.ElevatorState.Requests[floor][button].AckList, incomingHallOrder.AckList)
-							newWorldView.ElevatorState.Requests[floor][button].Version += 1 // Needed because we have the merged AckList now
+							newWorldView.ElevatorState.Requests[floor][button].Version += 1 // ! Needed because we have the merged AckList now
 						}
 
 					}
