@@ -18,7 +18,9 @@ echo "Making hall_request_assigner build script executable..."
 chmod +x ./external/Project-resources/cost_fns/hall_request_assigner/build.sh
 
 echo "Building hall_request_assigner..."
-./external/Project-resources/cost_fns/hall_request_assigner/build.sh
+cd external/Project-resources/cost_fns/hall_request_assigner
+./build.sh ../../../../elevatorControl/hallRequestAssigner
+cd ../../../..
 
 echo "Installing hall_request_assigner..."
 ./external/Project-resources/cost_fns/hall_request_assigner/build.sh ./elevatorcontrol/hallRequestAssigner/
