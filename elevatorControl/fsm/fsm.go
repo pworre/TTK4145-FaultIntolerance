@@ -80,13 +80,14 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 			stillActive <- true
 		} else {
 			// Add request to worldview
-			localRequest <- elevator.ButtonEvent{btnFloor, btnType}
-			// TODO: Også oppdatere local ordreliste
+			localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
+			//nextState = elevator.PlaceOrder(nextState, btnFloor, btnType)
+
 		}
 
 	default:
 		// Add request to worldview
-		localRequest <- elevator.ButtonEvent{btnFloor, btnType}
+		localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
 	}
 
 	return nextState
@@ -112,19 +113,19 @@ func OnNewAssignment(currentState elevator.Elevator,
 			keepDoorOpen <- true
 			stillActive <- true
 			// Clear request from worldview
-			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 		}
 		if shouldClearDownButton {
 			keepDoorOpen <- true
 			stillActive <- true
 			// Clear request from worldview
-			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 		}
 		if shouldClearCabButton {
 			keepDoorOpen <- true
 			stillActive <- true
 			// Clear request from worldview
-			localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 		}
 
 	case elevator.EB_Moving:
@@ -142,17 +143,17 @@ func OnNewAssignment(currentState elevator.Elevator,
 			if shouldClearUpButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 		case elevator.EB_Moving:
@@ -187,17 +188,17 @@ func OnFloorArrival(currentState elevator.Elevator,
 			if shouldClearUpButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 			nextState.Behaviour = elevator.EB_DoorOpen
@@ -227,17 +228,17 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			if shouldClearUpButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallUp}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_HallDown}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
 				stillActive <- true
 				// Clear request from worldview
-				localClearing <- elevator.ButtonEvent{nextState.Floor, elevator.B_Cab}
+				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 		case elevator.EB_Moving:
