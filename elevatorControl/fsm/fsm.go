@@ -81,7 +81,7 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 		} else {
 			// Add request to worldview
 			localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
-			//nextState = elevator.PlaceOrder(nextState, btnFloor, btnType)
+			nextState = elevator.PlaceOrder(nextState, btnFloor, btnType)
 
 		}
 

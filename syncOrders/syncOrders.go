@@ -68,6 +68,8 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				myWorldView.ElevatorState.Requests[request.Floor][request.Button].Version += 1
 			}
 
+			assignOrders(myWorldView, peerStates, peerCabOrders, assignEvent)
+
 		case request := <-localClearing:
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Placed = false
 			myWorldView.ElevatorState.Requests[request.Floor][request.Button].Unknown = false
@@ -131,7 +133,9 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				confirmedOrders := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 				for floor := 0; floor < elevator.N_FLOORS; floor++ {
 					for button := 0; button < elevator.N_BUTTONS; button++ {
-						confirmedOrders[floor][button].Placed = true
+						confirmedOrders[floor][button].Placed = newConfirmedPlacements[floor][button]
+						confirmedOrders[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
+						confirmedOrders[floor][button].Unknown = false
 					}
 				}
 
