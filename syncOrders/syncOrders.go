@@ -4,7 +4,6 @@ import (
 	"elevatorControl/elevator"
 	"elevatorControl/hallRequestAssigner"
 	"elevator_project/config"
-	"fmt"
 	"log"
 	"networkDriver/bcast"
 	"networkDriver/peers"
@@ -50,6 +49,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 	lastWorldView := myWorldView
 
 	activePeersList := []string{}
+	lostPeersList := []string{}
 	peerStates := make(map[string]elevator.Elevator)
 	peerCabOrders := make(map[string][elevator.N_FLOORS]elevator.Order)
 	lostPeerBackupStates := make(map[string]WorldView)
@@ -138,22 +138,35 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			oldActivePeerList := activePeersList
 			newActivePeerList := newPeerUpdate.Peers
 
+			log.Printf("Old peer list: %v", oldActivePeerList)
+			log.Printf("New peer list: %v", newActivePeerList)
+
 			for _, id := range newActivePeerList {
 				// Check if new peer
 				if !slices.Contains(oldActivePeerList, id) {
-					if backup, exists := lostPeerBackupStates[id]; exists {
-						// Retrieve backup
-						peerStates[id] = backup.ElevatorState
-						peerCabOrders[id] = backup.CabOrders
+					if slices.Contains(lostPeersList, id) {
+						if backup, exists := lostPeerBackupStates[id]; exists {
+							// Retrieve backup
+							peerStates[id] = backup.ElevatorState
+							peerCabOrders[id] = backup.CabOrders
 
-						delete(lostPeerBackupStates, id)
+							delete(lostPeerBackupStates, id)
+						}
 					}
 				}
 
 			}
 			activePeersList = newPeerUpdate.Peers
 			// Save backup for lost peers
+			log.Printf("Lost peers: %v", newPeerUpdate.Lost)
 			for _, lostID := range newPeerUpdate.Lost {
+
+				if slices.Contains(lostPeersList, lostID) {
+					log.Printf("Lost peer %s, but it has already been lost", lostID)
+					continue
+				} else {
+					lostPeersList = append(lostPeersList, lostID)
+				}
 
 				lostPeerBackupStates[lostID] = WorldView{
 					PeerID:        lostID,
@@ -225,7 +238,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			}
 
 		case incomingWorldView := <-networkRx:
-			log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
+			//log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
 
 			// Ignore my own rebroadcasts
 			if incomingWorldView.PeerID == myID {
@@ -234,12 +247,12 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			// Ignore messages if we have not yet gotten the peerUpdate
 			if !slices.Contains(activePeersList, incomingWorldView.PeerID) {
-				log.Printf("Discarded worldview from %q because activePeersList=%v",
+				log.Printf("Discarded worldview from %s because activePeersList=%v",
 					incomingWorldView.PeerID, activePeersList)
 				break
 			}
 
-			fmt.Printf("I am receiving a worldview from someone else: %+v", incomingWorldView)
+			//fmt.Printf("I am receiving a worldview from someone else: %+v", incomingWorldView)
 
 			// Be aware! We need this for the hallrequestassigner, but we should not trust their requests as our own,
 			// they are only meant to be used as inputs for the HRA
@@ -279,7 +292,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				log.Println("Something weird has happened, either all or no orders should be unknown at the same time")
 			}
 
-			log.Printf("CabOrders received from peer %s: %+v", incomingWorldView.PeerID, peerCabOrders[incomingWorldView.PeerID])
+			//log.Printf("CabOrders received from peer %s: %+v", incomingWorldView.PeerID, peerCabOrders[incomingWorldView.PeerID])
 
 			// Hallorder synchronization
 			for floor := 0; floor < elevator.N_FLOORS; floor++ {
@@ -322,7 +335,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 						} else if localHallOrder.Version < incomingHallOrder.Version {
 							// Accept orders that are newer than us
-							log.Println("I got convinced by someone else")
+							//log.Println("I got convinced by someone else")
 							newWorldView.ElevatorState.Requests[floor][button].Placed = incomingHallOrder.Placed
 							newWorldView.ElevatorState.Requests[floor][button].Version = incomingHallOrder.Version
 							newWorldView.ElevatorState.Requests[floor][button].AckList = elevator.MergeAckLists(incomingHallOrder.AckList, []string{myID})
@@ -432,14 +445,14 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case <-ticker.C:
 			// Send myWorldView
 			networkTx <- myWorldView
-			log.Println("Hopefully sent something!")
+			//log.Println("Hopefully sent something!")
 		}
 	}
 }
 
 func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator, peerCabOrders map[string][elevator.N_FLOORS]elevator.Order, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order) {
 
-	log.Println("Entering assignOrders")
+	log.Println("Assigning orders...")
 	myID := myWorldView.PeerID
 
 	hraInput := hallRequestAssigner.HRAInput{
@@ -531,8 +544,8 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 		newAssignment[floor][elevator.B_Cab] = myWorldView.CabOrders[floor]
 	}
 
-	log.Printf("assignOrders: worldview placements = %+v", elevator.ExtractOrderPlacementTable(myWorldView.ElevatorState.Requests))
-	log.Printf("assignOrders: assignment for %s = %+v", myID, newAssignment)
+	//log.Printf("assignOrders: worldview placements = %+v", elevator.ExtractOrderPlacementTable(myWorldView.ElevatorState.Requests))
+	//log.Printf("assignOrders: assignment for %s = %+v", myID, newAssignment)
 
 	assignEvent <- newAssignment
 }
