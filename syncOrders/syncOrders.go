@@ -263,7 +263,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
 				setLights <- newConfirmedPlacements
 
 				lastConfirmedPlacements = newConfirmedPlacements
@@ -337,7 +337,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
 				setLights <- newConfirmedPlacements
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
@@ -478,7 +478,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     newWorldView.CabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
 				setLights <- newConfirmedPlacements
 
 				lastConfirmedPlacements = newConfirmedPlacements
@@ -541,7 +541,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
 				setLights <- newConfirmedPlacements
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
@@ -556,7 +556,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 	}
 }
 
-func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator, peerCabOrders map[string][elevator.N_FLOORS]elevator.Order, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order) {
+func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator, peerCabOrders map[string][elevator.N_FLOORS]elevator.Order, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 
 	log.Println("Assigning orders...")
 	myID := myWorldView.PeerID
@@ -583,6 +583,7 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	for peerID, _ := range peerStates {
 		allElevatorIDs = append(allElevatorIDs, peerID)
 	}
+	log.Printf("allElevatorIDs: %v", allElevatorIDs)
 
 	allElevatorStates := make(map[string]elevator.Elevator)
 	for id, state := range peerStates {
@@ -640,28 +641,24 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	newAssignmentPlacements := newAssignmentMap[myID]
 	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 
-	// Manually override if only one elevator, since newAssigmentPlacements will be all false in this case
-	if len(allElevatorIDs) == 1 {
-
-		for floor := 0; floor < elevator.N_FLOORS; floor++ {
-			for button := 0; button < elevator.N_BUTTONS-1; button++ {
-				if hraInput.HallRequests[floor][button] {
-					newAssignment[floor][button].Placed = true
-				}
-
-			}
-		}
-
-	}
-
+	lights_whenAlone := [4][3]bool{}
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS-1; button++ {
-			newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
+			if len(allElevatorIDs) == 1 {
+				newAssignment[floor][button].Placed = hraInput.HallRequests[floor][button]
+				lights_whenAlone[floor][button] = hraInput.HallRequests[floor][button]
+			} else {
+				newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
+			}
 			newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
 			newAssignment[floor][button].Unknown = false
 			newAssignment[floor][button].AckList = myWorldView.ElevatorState.Requests[floor][button].AckList
 		}
 		newAssignment[floor][elevator.B_Cab] = myWorldView.CabOrders[floor]
+	}
+	if len(allElevatorIDs) == 1 {
+		log.Printf("lights_whenAlone: %v", lights_whenAlone)
+		setLights <- lights_whenAlone
 	}
 
 	//log.Printf("assignOrders: worldview placements = %+v", elevator.ExtractOrderPlacementTable(myWorldView.ElevatorState.Requests))
@@ -680,8 +677,20 @@ func needToAssignAgain(newWorldView WorldView, oldWorldView WorldView, lastConfi
 func extractConfirmedPlacements(newWorldView WorldView, lastConfirmedPlacements [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersList []string) [elevator.N_FLOORS][elevator.N_BUTTONS]bool {
 	newConfirmedPlacements := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
 
-	requiredAcks := append([]string{}, activePeersList...)
-	requiredAcks = append(requiredAcks, newWorldView.PeerID)
+	requiredAcks := []string{}
+	for _, id := range activePeersList {
+		if !slices.Contains(requiredAcks, id) {
+			requiredAcks = append(requiredAcks, id)
+		}
+	}
+	if !slices.Contains(requiredAcks, newWorldView.PeerID) {
+		requiredAcks = append(requiredAcks, newWorldView.PeerID)
+	}
+
+	/*
+		requiredAcks := append([]string{}, activePeersList...)
+		requiredAcks = append(requiredAcks, newWorldView.PeerID)
+	*/
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS-1; button++ {
