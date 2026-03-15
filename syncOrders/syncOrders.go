@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// TODO: Make a merging sequence for orderCompletedWhileDisconnected and ordersTobeRestored
+
+// HT:
 // TODO: Consider moving the order struct out into syncOrders, and not have it be part of the elevator.
 // TODO: Almost certain this is better, it shouldnt take too long, and it would massively simplify assignOrders
 
@@ -28,6 +31,12 @@ type CabAck struct {
 	AckerID string `json:"ackerID"`
 }
 
+type CabRestore struct {
+	TargetID  string
+	SenderID  string
+	CabOrders [elevator.N_FLOORS]elevator.Order
+}
+
 // TODO: Some form of counter or AckList to make sure that we transistion from the barrier correctly.
 // TODO: Should only come into play after very many iterations, though
 
@@ -37,6 +46,7 @@ const TRANSMIT_INTERVAL = 500 * time.Millisecond
 
 const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
+const CAB_RESTORE_BCAST_PORT = 40106
 
 func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 
@@ -60,15 +70,18 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 	// Channels, routines and timer for periodically broadcasting and receiving WorldViews between peers
 	networkRx := make(chan WorldView, 1024)
 	networkTx := make(chan WorldView, 1024)
-
 	go bcast.Transmitter(G_BCAST_PORT, networkTx)
 	go bcast.Receiver(G_BCAST_PORT, networkRx)
 
 	cabAckRx := make(chan CabAck, 1024)
 	cabAckTx := make(chan CabAck, 1024)
-
 	go bcast.Transmitter(CAB_ACK_BCAST_PORT, cabAckTx)
 	go bcast.Receiver(CAB_ACK_BCAST_PORT, cabAckRx)
+
+	cabRestoreRx := make(chan CabRestore, 1024)
+	cabRestoreTx := make(chan CabRestore, 1024)
+	go bcast.Transmitter(CAB_RESTORE_BCAST_PORT, cabRestoreTx)
+	go bcast.Receiver(CAB_RESTORE_BCAST_PORT, cabRestoreRx)
 
 	ticker := time.NewTicker(TRANSMIT_INTERVAL)
 	defer ticker.Stop()
@@ -144,13 +157,32 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			for _, id := range newActivePeerList {
 				// Check if new peer
 				if !slices.Contains(oldActivePeerList, id) {
-					if slices.Contains(lostPeersList, id) {
+					if !slices.Contains(lostPeersList, id) {
+						log.Printf("Peer %s joined the network", id)
+					} else {
 						if backup, exists := lostPeerBackupStates[id]; exists {
+							log.Printf("Retrieving backup for peer %s", id)
+
 							// Retrieve backup
 							peerStates[id] = backup.ElevatorState
-							peerCabOrders[id] = backup.CabOrders
+							//peerCabOrders[id] = backup.CabOrders
+
+							// ! OBS ! We SHOULD have an check before assigning peerStates and peerCabOrders
+							cabRestoreTx <- CabRestore{
+								TargetID:  id,
+								SenderID:  myID,
+								CabOrders: backup.CabOrders,
+							}
 
 							delete(lostPeerBackupStates, id)
+
+							// remove peer from lostPeerList
+							for index, lostID := range lostPeersList {
+								if lostID == id {
+									lostPeersList = append(lostPeersList[:index], lostPeersList[index+1:]...)
+									break
+								}
+							}
 						}
 					}
 				}
@@ -236,6 +268,80 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
+
+		case restore := <-cabRestoreRx:
+			if restore.TargetID != myID {
+				break
+			}
+
+			oldWorldView := myWorldView
+
+			for floor := 0; floor < elevator.N_FLOORS; floor++ {
+				incomingCabOrder := restore.CabOrders[floor]
+				localCabOrder := myWorldView.CabOrders[floor]
+
+				if incomingCabOrder.Unknown {
+					continue
+				}
+
+				restoredCabOrder := incomingCabOrder
+				restoredCabOrder.Unknown = false
+				restoredCabOrder.AckList = []string{myID}
+
+				// merge
+				if restoredCabOrder.Version > localCabOrder.Version {
+					myWorldView.CabOrders[floor] = restoredCabOrder
+				} else if restoredCabOrder.Version == localCabOrder.Version {
+					if restoredCabOrder.Placed || localCabOrder.Placed {
+						merged := localCabOrder
+						merged.Placed = true
+						merged.Unknown = false
+						merged.AckList = []string{myID}
+						if merged.Version < BARRIER {
+							merged.Version = BARRIER
+						}
+						myWorldView.CabOrders[floor] = merged
+					}
+				}
+			}
+
+			if needToAssignAgain(myWorldView, oldWorldView, lastConfirmedPlacements, activePeersList) {
+				newConfirmedPlacements = extractConfirmedPlacements(myWorldView, lastConfirmedPlacements, activePeersList)
+
+				confirmedOrders := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
+				for floor := 0; floor < elevator.N_FLOORS; floor++ {
+					for button := 0; button < elevator.N_BUTTONS-1; button++ {
+						confirmedOrders[floor][button].Placed = newConfirmedPlacements[floor][button]
+						confirmedOrders[floor][button].Unknown = false
+					}
+					confirmedOrders[floor][elevator.B_Cab] = elevator.Order{}
+				}
+
+				confirmedElevatorState := myWorldView.ElevatorState
+				confirmedElevatorState.Requests = confirmedOrders
+
+				confirmedCabOrders := [elevator.N_FLOORS]elevator.Order{}
+				for floor := 0; floor < elevator.N_FLOORS; floor++ {
+					for button := 0; button < elevator.N_BUTTONS-1; button++ {
+						if newConfirmedPlacements[floor][elevator.B_Cab] {
+							confirmedCabOrders[floor] = myWorldView.CabOrders[floor]
+						} else {
+							confirmedCabOrders[floor] = elevator.Order{}
+						}
+					}
+				}
+
+				confirmedWorldView := WorldView{
+					PeerID:        myID,
+					ElevatorState: confirmedElevatorState,
+					CabOrders:     confirmedCabOrders,
+				}
+
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent)
+				setLights <- newConfirmedPlacements
+				lastConfirmedPlacements = newConfirmedPlacements
+			}
+			lastWorldView = myWorldView
 
 		case incomingWorldView := <-networkRx:
 			//log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
