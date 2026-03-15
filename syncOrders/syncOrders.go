@@ -48,7 +48,7 @@ const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
 const CAB_RESTORE_BCAST_PORT = 40106
 
-func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
+func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -639,6 +639,20 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 
 	newAssignmentPlacements := newAssignmentMap[myID]
 	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
+
+	// Manually override if only one elevator, since newAssigmentPlacements will be all false in this case
+	if len(allElevatorIDs) == 1 {
+
+		for floor := 0; floor < elevator.N_FLOORS; floor++ {
+			for button := 0; button < elevator.N_BUTTONS-1; button++ {
+				if hraInput.HallRequests[floor][button] {
+					newAssignment[floor][button].Placed = true
+				}
+
+			}
+		}
+
+	}
 
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS-1; button++ {
