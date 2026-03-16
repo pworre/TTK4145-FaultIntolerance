@@ -44,7 +44,7 @@ func StateMachineLoop(startFloor int,
 		case <-doorTimeout:
 			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, closeDoor, keepDoorOpen, stillActive)
 
-		//Debugging, so for now, no obstruction:
+		//Debugging, so for now, ev obstruction:
 		case isObstructed := <-obstructionEvent:
 			newState.OutOfService = isObstructed
 			stillActive <- true
@@ -52,7 +52,7 @@ func StateMachineLoop(startFloor int,
 			if isObstructed {
 				log.Println("Obstruction actived")
 
-				if elev.Behaviour == elevator.EB_Idle {
+				if newState.Behaviour == elevator.EB_Idle {
 					openDoor <- true
 				} else if newState.Behaviour == elevator.EB_DoorOpen {
 					keepDoorOpen <- true
@@ -66,7 +66,7 @@ func StateMachineLoop(startFloor int,
 			allPeersStillActive = updatedActivePeers
 		case <-inactivityTimeout:
 
-			if len(allPeersStillActive) > 1 {
+			if len(allPeersStillActive) > 0 {
 				os.Exit(2)
 			} else {
 				stillActive <- true
@@ -107,6 +107,10 @@ func StateMachineLoop(startFloor int,
 
 func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevator.Button,
 	localRequest chan elevator.ButtonEvent, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
+
+	if currentState.OutOfService {
+		return currentState
+	}
 
 	nextState := currentState
 

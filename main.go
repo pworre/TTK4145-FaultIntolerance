@@ -65,7 +65,7 @@ func main() {
 	// Channels for P2P
 	peersTx_enable := make(chan bool)
 	peerUpdate := make(chan peers.PeerUpdate, 512)
-	allActivePeers := make(chan []string, 1)
+	allActivePeers := make(chan []string, 1024)
 	// - - - - - - Deploying network communication and order synchronization - - - - - -
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
@@ -77,7 +77,7 @@ func main() {
 	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
-	go elevator.PollObstruction(obstructionEvent)
+	//go elevator.PollObstruction(obstructionEvent)
 
 	// Local finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor, buttonEvent,

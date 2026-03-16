@@ -153,6 +153,8 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			oldActivePeerList := activePeersList
 			newActivePeerList := newPeerUpdate.Peers
 
+			activePeersChan <- newPeerUpdate.Peers
+
 			log.Printf("Old peer list: %v", oldActivePeerList)
 			log.Printf("New peer list: %v", newActivePeerList)
 
