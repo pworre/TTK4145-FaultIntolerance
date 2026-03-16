@@ -659,7 +659,7 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 
 	// Active peerIDs pluss myself as input for hallRequestAssigner
 	allServicableElevatorIDs := []string{}
-	if !slices.Contains(outOfServiceList, myID) {
+	if !myWorldView.ElevatorState.OutOfService {
 		allServicableElevatorIDs = append(allServicableElevatorIDs, myID)
 	}
 	for peerID := range peerStates {
