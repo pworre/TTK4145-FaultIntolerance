@@ -52,11 +52,13 @@ func StateMachineLoop(startFloor int,
 			if isObstructed {
 				log.Println("Obstruction actived")
 
-				if elev.Behaviour == elevator.EB_Idle || newState.Behaviour == elevator.EB_DoorOpen {
+				if elev.Behaviour == elevator.EB_Idle {
+					openDoor <- true
+				} else if newState.Behaviour == elevator.EB_DoorOpen {
 					keepDoorOpen <- true
-				} else {
-					log.Println("Obstruction cleared")
 				}
+			} else {
+				log.Println("Obstruction cleared")
 			}
 			//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
 
@@ -73,15 +75,29 @@ func StateMachineLoop(startFloor int,
 			stillActive <- true
 
 		case <-motorStallEvent:
+			log.Printf("Motor stalling...")
+
 			newState.OutOfService = true
 			stillActive <- true
 
 		}
 
 		// Maybe a guard here so it doesnt fire every single time, even without changes
-		if elevator.ExtractCabOrderPlacements(newState.Requests) != elevator.ExtractCabOrderPlacements(elev.Requests) {
+		/*if elevator.ExtractCabOrderPlacements(newState.Requests) != elevator.ExtractCabOrderPlacements(elev.Requests) {
 			localStateChange <- newState //  Pretty sure this channel should be buffered
+		}*/
+
+		stateChanged :=
+			newState.Floor != elev.Floor ||
+				newState.Direction != elev.Direction ||
+				newState.Behaviour != elev.Behaviour ||
+				newState.OutOfService != elev.OutOfService ||
+				elevator.ExtractCabOrderPlacements(newState.Requests) != elevator.ExtractCabOrderPlacements(elev.Requests)
+
+		if stateChanged {
+			localStateChange <- newState
 		}
+
 		elev = newState
 
 	}
@@ -122,6 +138,15 @@ func OnNewAssignment(currentState elevator.Elevator,
 
 	nextState := currentState
 	nextState.Requests = assignment
+
+	if nextState.OutOfService {
+		nextState.Direction = elevator.D_Stop
+		if nextState.Behaviour != elevator.EB_DoorOpen {
+			nextState.Behaviour = elevator.EB_Idle
+		}
+		return nextState
+	}
+
 	log.Printf("FSM before assignment: %+v", elevator.ExtractOrderPlacementTable(currentState.Requests))
 	log.Printf("FSM got assignment: %+v", elevator.ExtractOrderPlacementTable(assignment))
 

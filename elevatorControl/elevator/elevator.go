@@ -213,12 +213,14 @@ func PollButtons(buttonEvent chan ButtonEvent) {
 }
 
 func PollObstruction(obstructionEvent chan bool) {
-	obstrCh := make(chan bool)
+	prevObstr := elevio.GetObstruction()
 
-	go func() {
-		for {
-			obstrCh <- elevio.GetObstruction()
-			time.Sleep(50 * time.Millisecond)
+	for {
+		currentObstr := elevio.GetObstruction()
+		if currentObstr != prevObstr {
+			obstructionEvent <- currentObstr
+			prevObstr = currentObstr
 		}
-	}()
+		time.Sleep(50 * time.Millisecond)
+	}
 }
