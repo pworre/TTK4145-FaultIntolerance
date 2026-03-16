@@ -37,10 +37,10 @@ const (
 )
 
 type Elevator struct {
-	Floor     int
-	Direction MotorDirection
-	Behaviour ElevatorBehaviour
-	Requests  [N_FLOORS][N_BUTTONS]bool
+	Floor        int
+	Direction    MotorDirection
+	Behaviour    ElevatorBehaviour
+	Requests     [N_FLOORS][N_BUTTONS]bool
 	OutOfService bool
 }
 
@@ -53,36 +53,38 @@ func NewStartElevator(startFloor int) Elevator {
 	}
 }
 
-
 // These functions exist to maintain that all interactions with the psysical world go through the elevator module,
 // maintaining good module separation and simplifying module interfaces
 
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
 }
-func PollObstruction(obstructionEvent chan bool) {
+func PollObstructionSwitch(obstructionEvent chan bool) {
 	elevio.PollObstructionSwitch(obstructionEvent)
 }
-func FloorSensor() int {
+func GetFloor() int {
 	return elevio.GetFloor()
 }
-func FloorIndicator(newFloor int) {
+func GetObstruction() bool {
+	return elevio.GetObstruction()
+}
+func SetFloorIndicator(newFloor int) {
 	elevio.SetFloorIndicator(newFloor)
 }
 func SetMotorDirection(dir MotorDirection) {
 	elevio.SetMotorDirection(elevio.MotorDirection(dir))
 }
-func DoorLight(value bool) {
+func SetDoorLight(value bool) {
 	elevio.SetDoorOpenLamp(value)
 }
-func RequestButtonLight(floor int, button Button, value bool) {
+func setRequestButtonLight(floor int, button Button, value bool) {
 	elevio.SetButtonLamp(elevio.ButtonType(button), floor, value)
 }
 
 func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
 	for floor := 0; floor < N_FLOORS; floor++ {
 		for btn := 0; btn < N_BUTTONS; btn++ {
-			RequestButtonLight(floor, Button(btn), requests[floor][btn])
+			setRequestButtonLight(floor, Button(btn), requests[floor][btn])
 		}
 	}
 }
@@ -92,14 +94,14 @@ func HardwareInit(addr string, numFloors int) int {
 
 	allLightsOff := [N_FLOORS][N_BUTTONS]bool{}
 	SetAllLights(allLightsOff)
-	DoorLight(false)
+	SetDoorLight(false)
 
 	SetMotorDirection(D_Down)
-	for FloorSensor() == -1 {
+	for GetFloor() == -1 {
 	}
 	SetMotorDirection(D_Stop)
 
-	return FloorSensor()
+	return GetFloor()
 }
 
 func PollButtons(buttonEvent chan ButtonEvent) {

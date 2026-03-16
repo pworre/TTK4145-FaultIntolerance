@@ -16,7 +16,7 @@ func initTimers() (*time.Timer, *time.Timer, *time.Timer) {
 	return doorTimer, inactivityTimer, motorStallTimer
 }
 
-func Timers(resetDoorTimer chan bool, resetInactivityTimer chan bool, resetMotorStallTimer chan bool, doorTimeout chan bool, inactivityTimeout chan bool, motorStallTimeout chan bool) {
+func Timers(resetDoorTimer chan bool, resetInactivityTimer chan bool, resetMotorStallTimer chan bool, stopMotorStallTimer chan bool, doorTimeout chan bool, inactivityTimeout chan bool, motorStallTimeout chan bool) {
 	doorTimer, inactivityTimer, motorStallTimer := initTimers()
 	for {
 		select {
@@ -26,6 +26,8 @@ func Timers(resetDoorTimer chan bool, resetInactivityTimer chan bool, resetMotor
 			safeReset(inactivityTimer, INACTIVITY_TIMEOUT)
 		case <-resetMotorStallTimer:
 			safeReset(motorStallTimer, MOTOR_STALL_TIMEOUT)
+		case <-stopMotorStallTimer:
+			safeStop(motorStallTimer)
 		case <-doorTimer.C:
 			doorTimeout <- true
 		case <-inactivityTimer.C:
@@ -44,4 +46,13 @@ func safeReset(timer *time.Timer, duration time.Duration) {
 		}
 	}
 	timer.Reset(duration)
+}
+
+func safeStop(timer *time.Timer) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
 }

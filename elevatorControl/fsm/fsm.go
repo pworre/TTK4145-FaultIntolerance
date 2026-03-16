@@ -5,7 +5,7 @@ import (
 	"elevatorControl/requests"
 	"fmt"
 	"log"
-	"os"
+	//"os"
 )
 
 // Finite state machine loop
@@ -19,8 +19,9 @@ func StateMachineLoop(startFloor int,
 	changeMotorDirection chan elevator.MotorDirection,
 	openDoor chan bool, closeDoor chan bool,
 	keepDoorOpen chan bool, doorTimeout chan bool,
-	obstructionEvent chan bool, motorStallEvent chan bool,
-	inactivityTimeout chan bool, stillActive chan bool,
+	obstructionEvent chan bool, motorStallTimeout chan bool,
+	inactivityTimeout chan bool, startMotorStallTimer chan bool,
+	noMotorStall chan bool, stillActive chan bool,
 	localStateChange chan elevator.Elevator, activePeersChan <-chan []string) {
 
 	var allPeersStillActive []string
@@ -36,16 +37,39 @@ func StateMachineLoop(startFloor int,
 
 		case newAssignment := <-assignEvent:
 			fmt.Println("I got a new assignment!", newAssignment)
-			newState = OnNewAssignment(elev, newAssignment, localClearing, changeMotorDirection, openDoor, keepDoorOpen, stillActive)
+			if !newState.OutOfService {
+				newState = OnNewAssignment(elev, newAssignment, localClearing, changeMotorDirection, openDoor, keepDoorOpen, startMotorStallTimer, stillActive)
+			} else {
+				log.Println("Are out of service, and stopped us from getting this assignment:", newAssignment)
+			}
+			stillActive <- true
 
 		case newFloor := <-floorEvent:
-			newState = OnFloorArrival(elev, newFloor, setFloorIndicator, localClearing, changeMotorDirection, openDoor, stillActive)
+			newState = OnFloorArrival(elev, newFloor, setFloorIndicator, localClearing, changeMotorDirection, openDoor, startMotorStallTimer, noMotorStall, stillActive)
 
 		case <-doorTimeout:
-			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, closeDoor, keepDoorOpen, stillActive)
+			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, openDoor, closeDoor, keepDoorOpen, startMotorStallTimer, stillActive)
 
 		case isObstructed := <-obstructionEvent:
-			newState = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
+			newState.OutOfService = isObstructed
+			if isObstructed {
+				log.Println("We are obstructed")
+				if newState.Behaviour == elevator.EB_Idle {
+					openDoor <- true
+					newState.Behaviour = elevator.EB_DoorOpen
+				} else if newState.Behaviour == elevator.EB_DoorOpen {
+					keepDoorOpen <- true
+				}
+			} else {
+				log.Println("Obstruction cleared")
+				if newState.Behaviour == elevator.EB_Idle {
+					openDoor <- true
+					newState.Behaviour = elevator.EB_DoorOpen
+				} else if newState.Behaviour == elevator.EB_DoorOpen {
+					keepDoorOpen <- true
+				}
+			}
+			stillActive <- true
 
 		case updatedActivePeers := <-activePeersChan: // Timing logic incase of only one peer active
 			allPeersStillActive = updatedActivePeers
@@ -53,25 +77,27 @@ func StateMachineLoop(startFloor int,
 		case <-inactivityTimeout:
 
 			// Can only restart if we are not alone
-			if len(allPeersStillActive) > 1 {
-				os.Exit(2)
+			if len(allPeersStillActive) > 0 {
+				//os.Exit(2)
+				log.Printf("OS exit should be done here")
+				log.Printf("allPeersStillActive: %v", allPeersStillActive)
 			} else {
 				stillActive <- true
 			}
 
-		case <-motorStallEvent:
-
-			if len(allPeersStillActive) > 1 {
-				os.Exit(2)
-			} else {
-				stillActive <- true
+		case <-motorStallTimeout:
+			log.Println("Motorstall timeout, but elevator not moving")
+			if elev.Behaviour == elevator.EB_Moving {
+				log.Printf("Motor stalling while moving!")
+				newState.OutOfService = true
 			}
+			stillActive <- true
 
 		}
 
-		// Maybe a guard here so it doesnt fire every single time, even without changes
+		// Guard so it doesnt fire every single time, even without changes
 		if newState != elev {
-			localStateChange <- newState //  Pretty sure this channel should be buffered
+			localStateChange <- newState // ? Pretty sure this channel should be buffered
 		}
 		elev = newState
 
@@ -100,6 +126,8 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 		localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
 	}
 
+	stillActive <- true
+
 	return nextState
 }
 
@@ -107,7 +135,7 @@ func OnNewAssignment(currentState elevator.Elevator,
 	assignment [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	localClearing chan elevator.ButtonEvent,
 	changeMotorDirection chan elevator.MotorDirection,
-	openDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
+	openDoor chan bool, keepDoorOpen chan bool, startMotorStallTimer chan bool, stillActive chan bool) elevator.Elevator {
 
 	nextState := currentState
 	nextState.Requests = assignment
@@ -119,24 +147,36 @@ func OnNewAssignment(currentState elevator.Elevator,
 
 		if shouldClearUpButton {
 			keepDoorOpen <- true
-			stillActive <- true
 			// Clear request from worldview
 			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 		}
 		if shouldClearDownButton {
 			keepDoorOpen <- true
-			stillActive <- true
 			// Clear request from worldview
 			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 		}
 		if shouldClearCabButton {
 			keepDoorOpen <- true
-			stillActive <- true
 			// Clear request from worldview
 			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 		}
 
+		//if nextState.OutOfService {
+		//	changeMotorDirection <- elevator.D_Stop
+		//	nextState.Direction = elevator.D_Stop
+		//	keepDoorOpen <- true
+		//	nextState.Behaviour = elevator.EB_DoorOpen
+		//}
+
 	case elevator.EB_Moving:
+		//if elevator.FloorSensor() != -1 {
+		//	if nextState.OutOfService {
+		//		changeMotorDirection <- elevator.D_Stop
+		//		nextState.Direction = elevator.D_Stop
+		//		keepDoorOpen <- true
+		//		nextState.Behaviour = elevator.EB_DoorOpen
+		//	}
+		//}
 
 	case elevator.EB_Idle:
 
@@ -149,27 +189,39 @@ func OnNewAssignment(currentState elevator.Elevator,
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 
 			if shouldClearUpButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 		case elevator.EB_Moving:
+			//if !nextState.OutOfService {
+			//	changeMotorDirection <- nextState.Direction
+			//	startMotorStallTimer <- true
+			//}
 			changeMotorDirection <- nextState.Direction
+			startMotorStallTimer <- true
+			log.Println("Motorstall timer started!")
 
 		case elevator.EB_Idle:
 		}
+
+		//if nextState.OutOfService {
+		//	changeMotorDirection <- elevator.D_Stop
+		//	nextState.Direction = elevator.D_Stop
+		//	openDoor <- true
+		//	nextState.Behaviour = elevator.EB_DoorOpen
+		//}
 	}
+
+	stillActive <- true
 
 	return nextState
 }
@@ -178,9 +230,15 @@ func OnFloorArrival(currentState elevator.Elevator,
 	newFloor int, setFloorIndicator chan int,
 	localClearing chan elevator.ButtonEvent,
 	changeMotorDirection chan elevator.MotorDirection,
-	openDoor chan bool, stillActive chan bool) elevator.Elevator {
+	openDoor chan bool, startMotorStallTimer chan bool, noMotorStall chan bool, stillActive chan bool) elevator.Elevator {
 
 	nextState := currentState
+
+	noMotorStall <- true
+	if !elevator.GetObstruction() {
+		nextState.OutOfService = false
+	}
+	log.Println("Motorstall timer stopped!")
 
 	nextState.Floor = newFloor
 	setFloorIndicator <- newFloor
@@ -194,24 +252,34 @@ func OnFloorArrival(currentState elevator.Elevator,
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 
 			if shouldClearUpButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 			nextState.Behaviour = elevator.EB_DoorOpen
+		} else {
+			if !nextState.OutOfService {
+				startMotorStallTimer <- true
+				log.Println("Motorstall timer started!")
+			}
 		}
 	}
+	if nextState.OutOfService {
+		changeMotorDirection <- elevator.D_Stop
+		nextState.Behaviour = elevator.D_Stop
+		openDoor <- true
+		nextState.Behaviour = elevator.EB_DoorOpen
+	}
+
+	stillActive <- true
 
 	return nextState
 }
@@ -219,7 +287,7 @@ func OnFloorArrival(currentState elevator.Elevator,
 func OnDoorTimeout(currentState elevator.Elevator,
 	localClearing chan elevator.ButtonEvent,
 	changeMotorDirection chan elevator.MotorDirection,
-	closeDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
+	openDoor chan bool, closeDoor chan bool, keepDoorOpen chan bool, startMotorStallTimer chan bool, stillActive chan bool) elevator.Elevator {
 
 	nextState := currentState
 
@@ -234,30 +302,53 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 
 			if shouldClearUpButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallUp}
 			}
 			if shouldClearDownButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_HallDown}
 			}
 			if shouldClearCabButton {
-				stillActive <- true
 				// Clear request from worldview
 				localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 			}
 
 		case elevator.EB_Moving:
-			closeDoor <- true
-			changeMotorDirection <- nextState.Direction
+			if !nextState.OutOfService {
+				closeDoor <- true
+				changeMotorDirection <- nextState.Direction
+				startMotorStallTimer <- true
+				log.Println("Motorstall timer started!")
+			}
 
 		case elevator.EB_Idle:
-			closeDoor <- true
-			changeMotorDirection <- nextState.Direction
+			if !nextState.OutOfService {
+				closeDoor <- true
+				changeMotorDirection <- nextState.Direction
+			}
 		}
+
+		if nextState.OutOfService {
+			keepDoorOpen <- true
+			nextState.Behaviour = elevator.EB_DoorOpen
+			nextState.Behaviour = elevator.D_Stop
+		}
+
+		//case elevator.EB_Idle:
+		//	if !nextState.OutOfService {
+		//		closeDoor <- true
+		//	}
 	}
+	// ! Try commenting out, should work !
+	//if nextState.OutOfService {
+	//	changeMotorDirection <- elevator.D_Stop
+	//	nextState.Behaviour = elevator.D_Stop
+	//	openDoor <- true
+	//	nextState.Behaviour = elevator.EB_DoorOpen
+	//}
+
+	stillActive <- true
 
 	return nextState
 }

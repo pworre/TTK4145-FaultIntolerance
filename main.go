@@ -51,8 +51,10 @@ func main() {
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
 	resetInactivityTimer := make(chan bool)
+	startMotorStallTimer := make(chan bool)
+	stopMotorStallTimer := make(chan bool)
 	resetMotorStallTimer := make(chan bool)
-	//resetObstructionTimer := make(chan bool)
+	noMotorStall := make(chan bool)
 
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
@@ -74,24 +76,25 @@ func main() {
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
-	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
+	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, stopMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
-	// ! For debugging, obstruction is not yet implemented
-	//go elevator.PollObstruction(obstructionEvent)
+	go elevator.PollObstructionSwitch(obstructionEvent)
 
 	// Local finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor, buttonEvent,
 		assignEvent, localRequest, localClearing,
 		floorEvent, setFloorIndicator, changeMotorDirection,
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
-		obstructionEvent, motorStallTimeout, inactivityTimeout, stillActive, localStateChange, allActivePeers)
+		obstructionEvent, motorStallTimeout, inactivityTimeout,
+		startMotorStallTimer, noMotorStall, stillActive,
+		localStateChange, allActivePeers)
 
 	// Hardware action handling
 	for {
 		select {
 		case newFloor := <-setFloorIndicator:
-			elevator.FloorIndicator(newFloor)
+			elevator.SetFloorIndicator(newFloor)
 			resetMotorStallTimer <- true
 
 		case requestList := <-setLights:
@@ -101,17 +104,24 @@ func main() {
 			elevator.SetMotorDirection(dir)
 
 		case <-openDoor:
-			elevator.DoorLight(true)
+			elevator.SetDoorLight(true)
 			resetDoorTimer <- true
 
 		case <-closeDoor:
-			elevator.DoorLight(false)
+			elevator.SetDoorLight(false)
 
 		case <-keepDoorOpen:
 			resetDoorTimer <- true
 
 		case <-stillActive:
 			resetInactivityTimer <- true
+
+		case <-noMotorStall:
+			stopMotorStallTimer <- true
+
+		case <-startMotorStallTimer:
+			resetMotorStallTimer <- true
+
 		}
 	}
 }
