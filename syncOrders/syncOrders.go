@@ -60,6 +60,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 	activePeersList := []string{}
 	lostPeersList := []string{}
+	//outOfServicePeersList := []string{}
 	peerStates := make(map[string]elevator.Elevator)
 	peerCabOrders := make(map[string][elevator.N_FLOORS]elevator.Order)
 	lostPeerBackupStates := make(map[string]WorldView)
@@ -216,11 +217,13 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			if len(activePeersList) == 0 {
 				//networkDisconnect <- true // ? Maybe this is not needed at all...?
 				// ! NO NEED FOR DISCONNECT !!!! WE JUST NEED TO OPERATE WITH JUST US AT THE ACTIVEPEERLIST FOR HRA AND TAKE ALL ORDERS
-				for floor := 0; floor < elevator.N_FLOORS; floor++ {
-					for button := 0; button < elevator.N_BUTTONS; button++ {
-						myWorldView.ElevatorState.Requests[floor][button].Unknown = true
+				/*
+					for floor := 0; floor < elevator.N_FLOORS; floor++ {
+						for button := 0; button < elevator.N_BUTTONS; button++ {
+							myWorldView.ElevatorState.Requests[floor][button].Unknown = true
+						}
 					}
-				}
+				*/
 			}
 
 			for _, str := range activePeersList {
@@ -548,11 +551,70 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			lastWorldView = myWorldView
 
+		//case motorStall <- motorStallEvent:
+
 		case <-ticker.C:
 			// Send myWorldView
 			networkTx <- myWorldView
 			//log.Println("Hopefully sent something!")
 		}
+
+		allElevatorIDs := append([]string{}, activePeersList...)
+		if !slices.Contains(allElevatorIDs, myID) {
+			allElevatorIDs = append(allElevatorIDs, myID)
+		}
+
+		if len(allElevatorIDs) == 1 {
+			oldWorldView := lastWorldView
+			newWorldView := myWorldView
+
+			for floor := 0; floor < elevator.N_FLOORS; floor++ {
+				if newWorldView.CabOrders[floor].Version >= BARRIER {
+					newWorldView.CabOrders[floor].AckList = addAck(newWorldView.CabOrders[floor].AckList, myID)
+				}
+				for button := 0; button < elevator.N_BUTTONS-1; button++ {
+					newWorldView.ElevatorState.Requests[floor][button].AckList = addAck(newWorldView.ElevatorState.Requests[floor][button].AckList, myID)
+				}
+			}
+
+			if needToAssignAgain(newWorldView, oldWorldView, lastConfirmedPlacements, activePeersList) {
+				newConfirmedPlacements = extractConfirmedPlacements(newWorldView, lastConfirmedPlacements, activePeersList)
+
+				confirmedOrders := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
+				for floor := 0; floor < elevator.N_FLOORS; floor++ {
+					for button := 0; button < elevator.N_BUTTONS-1; button++ {
+						confirmedOrders[floor][button].Placed = newConfirmedPlacements[floor][button]
+						confirmedOrders[floor][button].Unknown = false
+					}
+					confirmedOrders[floor][elevator.B_Cab] = elevator.Order{}
+				}
+				confirmedElevatorState := newWorldView.ElevatorState
+				confirmedElevatorState.Requests = confirmedOrders
+
+				confirmedCabOrders := [elevator.N_FLOORS]elevator.Order{}
+				for floor := 0; floor < elevator.N_FLOORS; floor++ {
+					if newConfirmedPlacements[floor][elevator.B_Cab] {
+						confirmedCabOrders[floor] = newWorldView.CabOrders[floor]
+					} else {
+						confirmedCabOrders[floor] = elevator.Order{}
+					}
+				}
+
+				confirmedWorldView := WorldView{
+					PeerID:        myID,
+					ElevatorState: confirmedElevatorState,
+					CabOrders:     confirmedCabOrders,
+				}
+
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				setLights <- newConfirmedPlacements
+				lastConfirmedPlacements = newConfirmedPlacements
+			}
+
+			myWorldView = newWorldView
+			lastWorldView = myWorldView
+		}
+		log.Printf("Peers on network: %v", allElevatorIDs)
 	}
 }
 
