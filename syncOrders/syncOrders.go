@@ -13,7 +13,6 @@ import (
 
 // TODO: Make a merging sequence for orderCompletedWhileDisconnected and ordersTobeRestored
 
-
 type Order struct {
 	Placed  bool
 	Version uint16
@@ -22,9 +21,9 @@ type Order struct {
 }
 
 type WorldView struct {
-	PeerID        string                            `json:"peerID"`
-	ElevatorState elevator.Elevator                 `json:"elevatorState"`
-	OrderView  [elevator.N_FLOORS][elevator.N_BUTTONS]Order `json:"orders"`
+	PeerID        string                                       `json:"peerID"`
+	ElevatorState elevator.Elevator                            `json:"elevatorState"`
+	OrderView     [elevator.N_FLOORS][elevator.N_BUTTONS]Order `json:"orders"`
 	//CabOrders     [elevator.N_FLOORS]elevator.Order `json:"cabOrders"`
 }
 
@@ -216,7 +215,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				lostPeerBackupStates[lostID] = WorldView{
 					PeerID:        lostID,
 					ElevatorState: peerStates[lostID],
-					OrderView: orderBackup,
+					OrderView:     orderBackup,
 				}
 
 				// ? Blir lostID aldri overskrepet: så vi mister aldri listen?
@@ -299,7 +298,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
-
 
 		case incomingWorldView := <-networkRx:
 			//log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
@@ -412,14 +410,14 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 				}
 			}
-			
+
 			if needToAssignAgain(myWorldView, lastConfirmedPlacements, activePeersList) {
 
 				// This function sets the placements for all the orders that have a full AckList,
 				// and uses the lastConfirmedPlacements for all the rest (That dont have a full AckList)
 				newConfirmedPlacements := extractConfirmedPlacements(myWorldView, lastConfirmedPlacements, activePeersList)
 
-				assignOrders(myID, myWorldView.ElevatorState, newConfirmedPlacements, peerStates, peerCabOrders, assignEvent)
+				assignOrders(myID, newWorldView.ElevatorState, newConfirmedPlacements, peerStates, peerCabOrders, assignEvent)
 				setLights <- newConfirmedPlacements
 
 				lastConfirmedPlacements = newConfirmedPlacements
@@ -427,7 +425,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			// Even if no new assignment was needed, the version number might still be updated, so we must update state
 			myWorldView = newWorldView
-
 
 		case cabAck := <-cabAckRx:
 			if cabAck.OwnerID != myID {
@@ -547,33 +544,34 @@ func assignOrders(myID string, myState elevator.Elevator, placements [elevator.N
 		}
 
 	}
+	log.Println("This is the hra input:", hraInput)
 
 	newAssignmentMap := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
-	
+
 	newAssignment := newAssignmentMap[myID]
 
 	/*
-	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
+		newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 
-	lights_whenAlone := [4][3]bool{}
-	for floor := 0; floor < elevator.N_FLOORS; floor++ {
-		for button := 0; button < elevator.N_BUTTONS-1; button++ {
-			if len(allElevatorIDs) == 1 {
-				newAssignment[floor][button].Placed = hraInput.HallRequests[floor][button]
-				lights_whenAlone[floor][button] = hraInput.HallRequests[floor][button]
-			} else {
-				newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
+		lights_whenAlone := [4][3]bool{}
+		for floor := 0; floor < elevator.N_FLOORS; floor++ {
+			for button := 0; button < elevator.N_BUTTONS-1; button++ {
+				if len(allElevatorIDs) == 1 {
+					newAssignment[floor][button].Placed = hraInput.HallRequests[floor][button]
+					lights_whenAlone[floor][button] = hraInput.HallRequests[floor][button]
+				} else {
+					newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
+				}
+				newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
+				newAssignment[floor][button].Unknown = false
+				newAssignment[floor][button].AckList = myWorldView.ElevatorState.Requests[floor][button].AckList
 			}
-			newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
-			newAssignment[floor][button].Unknown = false
-			newAssignment[floor][button].AckList = myWorldView.ElevatorState.Requests[floor][button].AckList
+			newAssignment[floor][elevator.B_Cab] = myWorldView.CabOrders[floor]
 		}
-		newAssignment[floor][elevator.B_Cab] = myWorldView.CabOrders[floor]
-	}
-	if len(allElevatorIDs) == 1 {
-		log.Printf("lights_whenAlone: %v", lights_whenAlone)
-		setLights <- lights_whenAlone
-	}
+		if len(allElevatorIDs) == 1 {
+			log.Printf("lights_whenAlone: %v", lights_whenAlone)
+			setLights <- lights_whenAlone
+		}
 	*/
 
 	//log.Printf("assignOrders: worldview placements = %+v", elevator.ExtractOrderPlacementTable(myWorldView.ElevatorState.Requests))
