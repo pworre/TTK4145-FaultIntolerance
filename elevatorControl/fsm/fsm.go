@@ -46,10 +46,9 @@ func StateMachineLoop(startFloor int,
 
 		//Debugging, so for now, no obstruction:
 		case isObstructed := <-obstructionEvent:
+			newState.OutOfService = isObstructed
 			if isObstructed {
 				log.Println("Obstruction actived")
-				newState.OutOfService = true
-				localStateChange <- newState
 
 				if elev.Behaviour == elevator.EB_Idle {
 					keepDoorOpen <- true
@@ -72,7 +71,6 @@ func StateMachineLoop(startFloor int,
 
 		case <-motorStallEvent:
 			newState.OutOfService = true
-			localStateChange <- newState
 			stillActive <- true
 
 		}
