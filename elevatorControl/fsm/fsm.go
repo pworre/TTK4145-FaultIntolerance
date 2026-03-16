@@ -44,21 +44,20 @@ func StateMachineLoop(startFloor int,
 		case <-doorTimeout:
 			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, closeDoor, keepDoorOpen, stillActive)
 
-		//Debugging, so for now, no obstruction:
-		//case isObstructed := <-obstructionEvent:
-		//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
+		case isObstructed := <-obstructionEvent:
+			newState = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
 
 		case updatedActivePeers := <-activePeersChan: // Timing logic incase of only one peer active
 			allPeersStillActive = updatedActivePeers
+
 		case <-inactivityTimeout:
 
+			// Can only restart if we are not alone
 			if len(allPeersStillActive) > 1 {
 				os.Exit(2)
 			} else {
 				stillActive <- true
 			}
-
-			stillActive <- true
 
 		case <-motorStallEvent:
 

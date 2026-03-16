@@ -41,6 +41,7 @@ type Elevator struct {
 	Direction MotorDirection
 	Behaviour ElevatorBehaviour
 	Requests  [N_FLOORS][N_BUTTONS]bool
+	OutOfService bool
 }
 
 func NewStartElevator(startFloor int) Elevator {
@@ -58,6 +59,9 @@ func NewStartElevator(startFloor int) Elevator {
 
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
+}
+func PollObstruction(obstructionEvent chan bool) {
+	elevio.PollObstructionSwitch(obstructionEvent)
 }
 func FloorSensor() int {
 	return elevio.GetFloor()
