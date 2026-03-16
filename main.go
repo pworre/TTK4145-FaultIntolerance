@@ -77,8 +77,7 @@ func main() {
 	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
-	// ! For debugging, obstruction is not yet implemented
-	//go elevator.PollObstruction(obstructionEvent)
+	go elevator.PollObstruction(obstructionEvent)
 
 	// Local finite state machine transition logic
 	go fsm.StateMachineLoop(startFloor, buttonEvent,

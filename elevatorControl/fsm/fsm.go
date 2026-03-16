@@ -45,8 +45,18 @@ func StateMachineLoop(startFloor int,
 			newState = OnDoorTimeout(elev, localClearing, changeMotorDirection, closeDoor, keepDoorOpen, stillActive)
 
 		//Debugging, so for now, no obstruction:
-		//case isObstructed := <-obstructionEvent:
-		//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
+		case isObstructed := <-obstructionEvent:
+			if isObstructed {
+				log.Println("Obstruction actived")
+				elev.OutOfService = true
+				localStateChange <- elev
+
+				if elev.Behaviour == elevator.EB_Idle {
+					keepDoorOpen <- true
+					stillActive <- true
+				}
+			}
+			//elev = OnObstructionEvent(elev, isObstructed, keepDoorOpen)
 
 		case updatedActivePeers := <-activePeersChan: // Timing logic incase of only one peer active
 			allPeersStillActive = updatedActivePeers
@@ -61,12 +71,9 @@ func StateMachineLoop(startFloor int,
 			stillActive <- true
 
 		case <-motorStallEvent:
-
-			if len(allPeersStillActive) > 1 {
-				os.Exit(2)
-			} else {
-				stillActive <- true
-			}
+			elev.OutOfService = true
+			localStateChange <- elev
+			stillActive <- true
 
 		}
 

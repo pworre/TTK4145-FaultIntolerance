@@ -3,6 +3,7 @@ package elevator
 import (
 	"elevatorDriver/elevio"
 	"slices"
+	"time"
 )
 
 const N_FLOORS = 4
@@ -209,4 +210,15 @@ func PollButtons(buttonEvent chan ButtonEvent) {
 		event := <-btnEvent
 		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
 	}
+}
+
+func PollObstruction(obstructionEvent chan bool) {
+	obstrCh := make(chan bool)
+
+	go func() {
+		for {
+			obstrCh <- elevio.GetObstruction()
+			time.Sleep(50 * time.Millisecond)
+		}
+	}()
 }
