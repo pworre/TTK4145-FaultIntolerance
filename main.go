@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"networkDriver/peers"
+	"os"
+	"syscall"
 )
 
 const PEERS_PORT int = 40131
@@ -56,6 +58,9 @@ func main() {
 	resetMotorStallTimer := make(chan bool)
 	noMotorStall := make(chan bool)
 
+	// Restart channel
+	restart := make(chan bool)
+
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
 
@@ -88,7 +93,7 @@ func main() {
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
 		obstructionEvent, motorStallTimeout, inactivityTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
-		localStateChange, allActivePeers)
+		localStateChange, allActivePeers, restart)
 
 	// Hardware action handling
 	for {
@@ -122,6 +127,17 @@ func main() {
 		case <-startMotorStallTimer:
 			resetMotorStallTimer <- true
 
+		case <-restart:
+			log.Println("Restarting now!!!!!!!!!!!!!!!!!!!!!")
+			exe, err := os.Executable()
+			if err != nil {
+				log.Println("Restart error")
+			}
+
+			args := append([]string{exe}, os.Args[1:]...)
+			env := os.Environ()
+
+			syscall.Exec(exe, args, env)
 		}
 	}
 }

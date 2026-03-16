@@ -22,7 +22,7 @@ func StateMachineLoop(startFloor int,
 	obstructionEvent chan bool, motorStallTimeout chan bool,
 	inactivityTimeout chan bool, startMotorStallTimer chan bool,
 	noMotorStall chan bool, stillActive chan bool,
-	localStateChange chan elevator.Elevator, activePeersChan <-chan []string) {
+	localStateChange chan elevator.Elevator, activePeersChan <-chan []string, restart chan bool) {
 
 	var allPeersStillActive []string
 
@@ -79,6 +79,7 @@ func StateMachineLoop(startFloor int,
 			// Can only restart if we are not alone
 			if len(allPeersStillActive) > 0 {
 				//os.Exit(2)
+				restart <- true
 				log.Printf("OS exit should be done here")
 				log.Printf("allPeersStillActive: %v", allPeersStillActive)
 			} else {
