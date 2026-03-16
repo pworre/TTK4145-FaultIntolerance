@@ -5,7 +5,6 @@ import (
 	"elevatorControl/requests"
 	"fmt"
 	"log"
-	"os"
 )
 
 // Finite state machine loop
@@ -67,7 +66,9 @@ func StateMachineLoop(startFloor int,
 		case <-inactivityTimeout:
 
 			if len(allPeersStillActive) > 0 {
-				os.Exit(2)
+				//os.Exit(2)
+				log.Printf("OS exit should be done here")
+				log.Printf("allPeersStillActive: %v", allPeersStillActive)
 			} else {
 				stillActive <- true
 			}
@@ -226,6 +227,8 @@ func OnFloorArrival(currentState elevator.Elevator,
 
 	nextState.Floor = newFloor
 	setFloorIndicator <- newFloor
+
+	//resetMotorStallTimer <- true
 
 	switch nextState.Behaviour {
 	case elevator.EB_Moving:

@@ -52,6 +52,8 @@ func main() {
 	resetDoorTimer := make(chan bool)
 	resetInactivityTimer := make(chan bool)
 	resetMotorStallTimer := make(chan bool)
+	startMotorStallTimer := make(chan bool)
+	stopMotorStallTimer := make(chan bool)
 	//resetObstructionTimer := make(chan bool)
 
 	// Channels for orders
@@ -70,11 +72,11 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, stillActive)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
-	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
+	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, startMotorStallTimer, stopMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
 	//go elevator.PollObstruction(obstructionEvent)
@@ -91,13 +93,17 @@ func main() {
 		select {
 		case newFloor := <-setFloorIndicator:
 			elevator.FloorIndicator(newFloor)
-			resetMotorStallTimer <- true
+			stopMotorStallTimer <- true
 
 		case requestList := <-setLights:
 			elevator.SetAllLights(requestList)
 
 		case dir := <-changeMotorDirection:
 			elevator.SetMotorDirection(dir)
+
+			if dir != elevator.D_Stop {
+				startMotorStallTimer <- true
+			}
 
 		case <-openDoor:
 			elevator.DoorLight(true)
@@ -110,6 +116,7 @@ func main() {
 			resetDoorTimer <- true
 
 		case <-stillActive:
+			log.Printf("Entered still-active")
 			resetInactivityTimer <- true
 		}
 	}

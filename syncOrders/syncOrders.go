@@ -48,7 +48,7 @@ const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
 const CAB_RESTORE_BCAST_PORT = 40106
 
-func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string) {
+func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string, stillActive chan bool) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -154,6 +154,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			newActivePeerList := newPeerUpdate.Peers
 
 			activePeersChan <- newPeerUpdate.Peers
+			//stillActive <- true
 
 			log.Printf("Old peer list: %v", oldActivePeerList)
 			log.Printf("New peer list: %v", newActivePeerList)
