@@ -46,7 +46,7 @@ type CabRestore struct {
 
 const BARRIER = 60000
 
-const TRANSMIT_INTERVAL = 500 * time.Millisecond
+const TRANSMIT_INTERVAL = 200 * time.Millisecond
 
 const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
@@ -544,7 +544,6 @@ func assignOrders(myID string, myState elevator.Elevator, placements [elevator.N
 		}
 
 	}
-	log.Println("This is the hra input:", hraInput)
 
 	newAssignmentMap := hallRequestAssigner.Decode(hallRequestAssigner.AssignOrders(hallRequestAssigner.Encode(hraInput)))
 
