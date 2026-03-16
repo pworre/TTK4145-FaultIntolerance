@@ -47,10 +47,11 @@ type Order struct {
 }
 
 type Elevator struct {
-	Floor     int
-	Direction MotorDirection
-	Behaviour ElevatorBehaviour
-	Requests  [N_FLOORS][N_BUTTONS]Order
+	Floor        int
+	Direction    MotorDirection
+	Behaviour    ElevatorBehaviour
+	Requests     [N_FLOORS][N_BUTTONS]Order
+	OutOfService bool
 }
 
 func NewStartElevator(startFloor int) Elevator {

@@ -23,9 +23,10 @@ func TestAssignOrders_TimoutTest(t *testing.T) {
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, 1)
 
 	done := make(chan struct{})
-
+	outOfServiceList := []string{}
+	setLights := make(chan [4][3]bool, 1024)
 	go func() {
-		assignOrders(worldView, nilPeerStates, nilPeerCabOrders, assignEvent)
+		assignOrders(worldView, nilPeerStates, nilPeerCabOrders, assignEvent, setLights, outOfServiceList)
 		close(done)
 	}()
 

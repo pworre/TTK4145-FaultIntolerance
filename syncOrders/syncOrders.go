@@ -60,7 +60,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 	activePeersList := []string{}
 	lostPeersList := []string{}
-	//outOfServicePeersList := []string{}
+	outOfServicePeersList := []string{}
 	peerStates := make(map[string]elevator.Elevator)
 	peerCabOrders := make(map[string][elevator.N_FLOORS]elevator.Order)
 	lostPeerBackupStates := make(map[string]WorldView)
@@ -127,6 +127,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			myWorldView.ElevatorState.Floor = newLocalState.Floor
 			myWorldView.ElevatorState.Direction = newLocalState.Direction
 			myWorldView.ElevatorState.Behaviour = newLocalState.Behaviour
+			myWorldView.ElevatorState.OutOfService = newLocalState.OutOfService
 
 			//myWorldView.CabOrders = elevator.ExtractCabOrders(newLocalState.Requests)
 
@@ -266,7 +267,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights, outOfServicePeersList)
 				setLights <- newConfirmedPlacements
 
 				lastConfirmedPlacements = newConfirmedPlacements
@@ -340,7 +341,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights, outOfServicePeersList)
 				setLights <- newConfirmedPlacements
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
@@ -366,6 +367,24 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			// Be aware! We need this for the hallrequestassigner, but we should not trust their requests as our own,
 			// they are only meant to be used as inputs for the HRA
 			peerStates[incomingWorldView.PeerID] = incomingWorldView.ElevatorState
+
+			// TEST FOR OUTOFSERVICE ! ! ! ! ! ! ! ! !
+			//outOfServicePeersList = append(outOfServicePeersList, "2")
+
+			isPeerOutOfService := incomingWorldView.ElevatorState.OutOfService
+			if isPeerOutOfService {
+				if !slices.Contains(outOfServicePeersList, incomingWorldView.PeerID) {
+					outOfServicePeersList = append(outOfServicePeersList, incomingWorldView.PeerID)
+				}
+			} else {
+				filteredList := outOfServicePeersList[:0]
+				for _, id := range outOfServicePeersList {
+					if id != incomingWorldView.PeerID {
+						filteredList = append(filteredList, id)
+					}
+				}
+				outOfServicePeersList = filteredList
+			}
 
 			newWorldView := myWorldView
 
@@ -481,7 +500,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     newWorldView.CabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights, outOfServicePeersList)
 				setLights <- newConfirmedPlacements
 
 				lastConfirmedPlacements = newConfirmedPlacements
@@ -544,14 +563,12 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights, outOfServicePeersList)
 				setLights <- newConfirmedPlacements
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
 
 			lastWorldView = myWorldView
-
-		//case motorStall <- motorStallEvent:
 
 		case <-ticker.C:
 			// Send myWorldView
@@ -606,7 +623,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					CabOrders:     confirmedCabOrders,
 				}
 
-				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights)
+				assignOrders(confirmedWorldView, peerStates, peerCabOrders, assignEvent, setLights, outOfServicePeersList)
 				setLights <- newConfirmedPlacements
 				lastConfirmedPlacements = newConfirmedPlacements
 			}
@@ -618,7 +635,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 	}
 }
 
-func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator, peerCabOrders map[string][elevator.N_FLOORS]elevator.Order, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
+func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator, peerCabOrders map[string][elevator.N_FLOORS]elevator.Order, assignEvent chan<- [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, outOfServiceList []string) {
 
 	log.Println("Assigning orders...")
 	myID := myWorldView.PeerID
@@ -641,25 +658,37 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	hraInput.HallRequests = input
 
 	// Active peerIDs pluss myself as input for hallRequestAssigner
-	allElevatorIDs := []string{myID}
-	for peerID, _ := range peerStates {
-		allElevatorIDs = append(allElevatorIDs, peerID)
+	allServicableElevatorIDs := []string{}
+	if !slices.Contains(outOfServiceList, myID) {
+		allServicableElevatorIDs = append(allServicableElevatorIDs, myID)
 	}
-	log.Printf("allElevatorIDs: %v", allElevatorIDs)
+	for peerID := range peerStates {
+		if !slices.Contains(outOfServiceList, peerID) {
+			allServicableElevatorIDs = append(allServicableElevatorIDs, peerID)
+		}
+	}
+
+	log.Printf("All servicable elevators: %v", allServicableElevatorIDs)
 
 	allElevatorStates := make(map[string]elevator.Elevator)
-	for id, state := range peerStates {
-		allElevatorStates[id] = state
+	for _, id := range allServicableElevatorIDs {
+		if id == myID {
+			allElevatorStates[id] = myWorldView.ElevatorState
+		} else {
+			allElevatorStates[id] = peerStates[id]
+		}
 	}
-	allElevatorStates[myID] = myWorldView.ElevatorState
 
 	allCabOrders := make(map[string][elevator.N_FLOORS]elevator.Order)
-	for id, cabOrderList := range peerCabOrders {
-		allCabOrders[id] = cabOrderList
+	for _, id := range allServicableElevatorIDs {
+		if id == myID {
+			allCabOrders[id] = myWorldView.CabOrders
+		} else {
+			allCabOrders[id] = peerCabOrders[id]
+		}
 	}
-	allCabOrders[myID] = myWorldView.CabOrders
 
-	for _, ID := range allElevatorIDs {
+	for _, ID := range allServicableElevatorIDs {
 		// convert elevator.behaviour [int] to hra.behaviour [string]
 		var elevBehaviour_hra string
 		switch allElevatorStates[ID].Behaviour {
@@ -703,22 +732,23 @@ func assignOrders(myWorldView WorldView, peerStates map[string]elevator.Elevator
 	newAssignmentPlacements := newAssignmentMap[myID]
 	newAssignment := [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order{}
 
-	lights_whenAlone := [4][3]bool{}
+	lights_whenAlone := [elevator.N_FLOORS][elevator.N_BUTTONS]bool{}
 	for floor := 0; floor < elevator.N_FLOORS; floor++ {
 		for button := 0; button < elevator.N_BUTTONS-1; button++ {
-			if len(allElevatorIDs) == 1 {
+			if len(allServicableElevatorIDs) == 1 {
 				newAssignment[floor][button].Placed = hraInput.HallRequests[floor][button]
 				lights_whenAlone[floor][button] = hraInput.HallRequests[floor][button]
 			} else {
 				newAssignment[floor][button].Placed = newAssignmentPlacements[floor][button]
 			}
+
 			newAssignment[floor][button].Version = myWorldView.ElevatorState.Requests[floor][button].Version
 			newAssignment[floor][button].Unknown = false
 			newAssignment[floor][button].AckList = myWorldView.ElevatorState.Requests[floor][button].AckList
 		}
 		newAssignment[floor][elevator.B_Cab] = myWorldView.CabOrders[floor]
 	}
-	if len(allElevatorIDs) == 1 {
+	if len(allServicableElevatorIDs) == 1 {
 		log.Printf("lights_whenAlone: %v", lights_whenAlone)
 		setLights <- lights_whenAlone
 	}
