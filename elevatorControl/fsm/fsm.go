@@ -12,7 +12,7 @@ import (
 
 func StateMachineLoop(startFloor int,
 	buttonEvent chan elevator.ButtonEvent,
-	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order,
+	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	localRequest chan elevator.ButtonEvent,
 	localClearing chan elevator.ButtonEvent,
 	floorEvent chan int, setFloorIndicator chan int,
@@ -71,7 +71,7 @@ func StateMachineLoop(startFloor int,
 		}
 
 		// Maybe a guard here so it doesnt fire every single time, even without changes
-		if elevator.ExtractCabOrderPlacements(newState.Requests) != elevator.ExtractCabOrderPlacements(elev.Requests) {
+		if newState != elev {
 			localStateChange <- newState //  Pretty sure this channel should be buffered
 		}
 		elev = newState
@@ -94,8 +94,6 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 		} else {
 			// Add request to worldview
 			localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
-			nextState = elevator.PlaceOrder(nextState, btnFloor, btnType)
-
 		}
 
 	default:
@@ -107,15 +105,13 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 }
 
 func OnNewAssignment(currentState elevator.Elevator,
-	assignment [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order,
+	assignment [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	localClearing chan elevator.ButtonEvent,
 	changeMotorDirection chan elevator.MotorDirection,
 	openDoor chan bool, keepDoorOpen chan bool, stillActive chan bool) elevator.Elevator {
 
 	nextState := currentState
 	nextState.Requests = assignment
-	log.Printf("FSM before assignment: %+v", elevator.ExtractOrderPlacementTable(currentState.Requests))
-	log.Printf("FSM got assignment: %+v", elevator.ExtractOrderPlacementTable(assignment))
 
 	switch nextState.Behaviour {
 	case elevator.EB_DoorOpen:

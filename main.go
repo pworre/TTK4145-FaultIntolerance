@@ -55,7 +55,7 @@ func main() {
 	//resetObstructionTimer := make(chan bool)
 
 	// Channels for orders
-	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]elevator.Order, 512)
+	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
 
 	localRequest := make(chan elevator.ButtonEvent)
 	localClearing := make(chan elevator.ButtonEvent)

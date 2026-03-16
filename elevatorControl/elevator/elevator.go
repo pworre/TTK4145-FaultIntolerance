@@ -2,7 +2,6 @@ package elevator
 
 import (
 	"elevatorDriver/elevio"
-	"slices"
 )
 
 const N_FLOORS = 4
@@ -37,20 +36,11 @@ const (
 	EB_Moving   = 2
 )
 
-// TODO: Consider moving the order struct out into syncOrders, and not have it be part of the elevator.
-// TODO: Almost certain this is better, and shouldnt take too long.
-type Order struct {
-	Placed  bool
-	Version uint16
-	Unknown bool
-	AckList []string
-}
-
 type Elevator struct {
 	Floor     int
 	Direction MotorDirection
 	Behaviour ElevatorBehaviour
-	Requests  [N_FLOORS][N_BUTTONS]Order
+	Requests  [N_FLOORS][N_BUTTONS]bool
 }
 
 func NewStartElevator(startFloor int) Elevator {
@@ -58,101 +48,10 @@ func NewStartElevator(startFloor int) Elevator {
 		Floor:     startFloor,
 		Direction: D_Stop,
 		Behaviour: EB_Idle,
-		// Assume all new elevators are version 0,
-		// they have no requests, and they know it
+		// Assume all new elevators have no requests
 	}
 }
 
-func PlaceOrder(e Elevator, btnFloor int, btnType Button) Elevator {
-	e.Requests[btnFloor][btnType].Placed = true
-	e.Requests[btnFloor][btnType].Unknown = false
-	return e
-}
-
-func ClearOrder(e Elevator, btnFloor int, btnType Button) Elevator {
-	e.Requests[btnFloor][btnType].Placed = false
-	e.Requests[btnFloor][btnType].Unknown = false
-	return e
-}
-
-func IncrementOrderVersion(e Elevator, btnFloor int, btnType Button) Elevator {
-	if btnType != B_Cab {
-		e.Requests[btnFloor][btnType].Version += 1
-	}
-	return e
-}
-
-func ExtractCabOrders(requests [N_FLOORS][N_BUTTONS]Order) [N_FLOORS]Order {
-	var cabOrders [N_FLOORS]Order
-	for floor := 0; floor < N_FLOORS; floor++ {
-		cabOrders[floor] = requests[floor][N_BUTTONS-1]
-	}
-	return cabOrders
-}
-
-func ExtractCabOrderPlacements(requests [N_FLOORS][N_BUTTONS]Order) [N_FLOORS]bool {
-	var cabOrderPlacements [N_FLOORS]bool
-	for floor := 0; floor < N_FLOORS; floor++ {
-		cabOrderPlacements[floor] = requests[floor][N_BUTTONS-1].Placed
-	}
-	return cabOrderPlacements
-}
-
-func ExtractHallOrderPlacements(requests [N_FLOORS][N_BUTTONS]Order) [N_FLOORS][N_BUTTONS - 1]bool {
-	var hallOrderPlacements [N_FLOORS][N_BUTTONS - 1]bool
-	for floor := 0; floor < N_FLOORS; floor++ {
-		for button := 0; button < N_BUTTONS-1; button++ {
-			hallOrderPlacements[floor][button] = requests[floor][button].Placed
-		}
-	}
-	return hallOrderPlacements
-}
-
-func ExtractOrderPlacementTable(requests [N_FLOORS][N_BUTTONS]Order) [N_FLOORS][N_BUTTONS]bool {
-	var placements [N_FLOORS][N_BUTTONS]bool
-	for floor := 0; floor < N_FLOORS; floor++ {
-		for button := 0; button < N_BUTTONS; button++ {
-			placements[floor][button] = requests[floor][button].Placed
-		}
-	}
-	return placements
-}
-
-func MergeAckLists(firstAckList []string, secondAckList []string) []string {
-	mergeList := []string{}
-	for _, ID := range firstAckList {
-		mergeList = append(mergeList, ID)
-	}
-	for _, ID := range secondAckList {
-		if !isElementInList(ID, firstAckList) {
-			mergeList = append(mergeList, ID)
-		}
-	}
-	return mergeList
-}
-
-func isElementInList(elem string, list []string) bool {
-	for _, listElem := range list {
-		if elem == listElem {
-			return true
-		}
-	}
-	return false
-}
-
-func ContainSameElements(firstList []string, secondList []string) bool {
-	if len(firstList) != len(secondList) {
-		return false
-	}
-	// Must take copies as to not modify the original slices
-	firstListCopy := slices.Clone(firstList)
-	secondListCopy := slices.Clone(secondList)
-
-	slices.Sort(firstListCopy)
-	slices.Sort(secondListCopy)
-
-	return slices.Equal(firstListCopy, secondListCopy)
-}
 
 // These functions exist to maintain that all interactions with the psysical world go through the elevator module,
 // maintaining good module separation and simplifying module interfaces

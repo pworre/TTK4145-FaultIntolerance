@@ -2,7 +2,7 @@ package requests
 
 import "elevatorControl/elevator"
 
-
+/*
 func requestsAbove(e elevator.Elevator) bool {
 	for f := e.Floor + 1; f < elevator.N_FLOORS; f++ {
 		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
@@ -28,6 +28,38 @@ func requestsBelow(e elevator.Elevator) bool {
 func requestsHere(e elevator.Elevator) bool {
 	for btn := 0; btn < elevator.N_BUTTONS; btn++ {
 		if e.Requests[e.Floor][btn].Placed {
+			return true
+		}
+	}
+	return false
+}
+*/
+
+func requestsAbove(e elevator.Elevator) bool {
+	for f := e.Floor + 1; f < elevator.N_FLOORS; f++ {
+		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+			if e.Requests[f][btn] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func requestsBelow(e elevator.Elevator) bool {
+	for f := 0; f < e.Floor; f++ {
+		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+			if e.Requests[f][btn] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func requestsHere(e elevator.Elevator) bool {
+	for btn := 0; btn < elevator.N_BUTTONS; btn++ {
+		if e.Requests[e.Floor][btn] {
 			return true
 		}
 	}
@@ -74,6 +106,7 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 	}
 }
 
+/*
 func ShouldStop(e elevator.Elevator) bool {
 	switch e.Direction {
 	case elevator.D_Down:
@@ -84,6 +117,27 @@ func ShouldStop(e elevator.Elevator) bool {
 	case elevator.D_Up:
 		return e.Requests[e.Floor][elevator.B_HallUp].Placed ||
 			e.Requests[e.Floor][elevator.B_Cab].Placed ||
+			!requestsAbove(e)
+
+	case elevator.D_Stop:
+		return true
+
+	default:
+		return true
+	}
+}
+*/
+
+func ShouldStop(e elevator.Elevator) bool {
+	switch e.Direction {
+	case elevator.D_Down:
+		return e.Requests[e.Floor][elevator.B_HallDown] ||
+			e.Requests[e.Floor][elevator.B_Cab] ||
+			!requestsBelow(e)
+
+	case elevator.D_Up:
+		return e.Requests[e.Floor][elevator.B_HallUp] ||
+			e.Requests[e.Floor][elevator.B_Cab] ||
 			!requestsAbove(e)
 
 	case elevator.D_Stop:
@@ -130,7 +184,7 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 		e.Requests[e.Floor][elevator.B_HallUp] = false
 		e.Requests[e.Floor][elevator.B_HallDown] = false
 	}
-	
+
 	return e
 }
 */
