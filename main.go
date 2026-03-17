@@ -59,10 +59,11 @@ func main() {
 	resetMotorStallTimer := make(chan bool)
 	noMotorStall := make(chan bool)
 
-	worldViewCh := make(chan syncOrders.WorldView)
+	worldViewCh := make(chan syncOrders.WorldView, 1)
+	restoreWorldViewCh := make(chan syncOrders.WorldView, 1)
 
 	// Restart channel
-	restart := make(chan bool, 64)
+	restart := make(chan bool, 512)
 
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
@@ -80,7 +81,7 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh, restoreWorldViewCh)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
@@ -98,7 +99,7 @@ func main() {
 		startMotorStallTimer, noMotorStall, stillActive,
 		localStateChange, allActivePeers)
 
-	go processPairs.RunProcessPairs(worldViewCh)
+	go processPairs.RunProcessPairs(worldViewCh, restoreWorldViewCh, restart, cfg)
 
 	// Hardware action handling
 	for {
@@ -132,23 +133,6 @@ func main() {
 		case <-startMotorStallTimer:
 			resetMotorStallTimer <- true
 
-		case <-restart:
-			/*
-				log.Println("Restarting")
-				exe, err := os.Executable()
-				if err != nil {
-					log.Printf("Oh no! os.Executable failed: %v", err)
-					continue
-				}
-
-				args := append([]string{exe}, os.Args[1:]...)
-				env := os.Environ()
-
-				//syscall.Exec(exe, args, env)
-				if err := syscall.Exec(exe, args, env); err != nil {
-					log.Printf("Oh no! syscall.Exec failed: %v", err)
-				}
-			*/
 		}
 	}
 }

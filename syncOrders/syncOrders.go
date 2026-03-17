@@ -61,7 +61,7 @@ const CAB_RESTORE_BCAST_PORT = 40106
 func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator,
 	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent,
 	localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool, worldViewCh chan WorldView) {
+	activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool, worldViewCh chan WorldView, restoredWorldViewCh chan WorldView) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -144,7 +144,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			// Can only restart if we are not alone
 			if len(activePeersList) > 0 {
-				//os.Exit(2)
 				log.Printf("OS exit should be done here")
 				log.Printf("allPeersStillActive: %v", activePeersList)
 				restart <- true
@@ -155,6 +154,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			}
 
 		case newPeerUpdate := <-peerUpdate:
+			//inactivityTimeout <- true
 			oldActivePeersList := activePeersList
 			newActivePeersList := newPeerUpdate.Peers
 
@@ -280,6 +280,20 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					}
 				}
 			}
+		case restored := <-restoredWorldViewCh:
+			log.Printf("Restoring worldiew from processPairs for peer %s", restored.PeerID)
+
+			myWorldView.OrderView = restored.OrderView
+			myWorldView.ElevatorState = restored.ElevatorState
+			myWorldView.PeerID = myID
+
+			for floor := 0; floor < elevator.N_FLOORS; floor++ {
+				cab := &myWorldView.OrderView[floor][elevator.N_BUTTONS-1]
+				cab.AckList = addAck(cab.AckList, myID)
+				lastConfirmedPlacements[floor][elevator.N_BUTTONS-1] = cab.Placed
+			}
+
+			shouldReassign = true
 
 		case incomingWorldView := <-networkRx:
 			//log.Printf("Decoded worldview before filtering: %+v", incomingWorldView)
@@ -359,7 +373,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 					if localHallOrder.Version > incomingHallOrder.Version {
 						// Ignore orders coming in that are older than you
-						log.Println("I ignored someone else")
+						log.Println("I ignored someone else with older version")
 						continue
 
 					} else if localHallOrder.Version == incomingHallOrder.Version {
@@ -420,7 +434,15 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			// Send myWorldView
 			networkTx <- myWorldView
 			//log.Println("Hopefully sent something!")
-			worldViewCh <- myWorldView
+
+			// needed for non-blocking
+			select {
+			case worldViewCh <- myWorldView:
+			default:
+				// Replace old version in buffer
+				<-worldViewCh
+				worldViewCh <- myWorldView
+			}
 		}
 
 		if confirmedPlacementsChanged(myWorldView, lastConfirmedPlacements, activePeersList) || shouldReassign {
