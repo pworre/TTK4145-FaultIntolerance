@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-// Really only to big things left:
-
-// TODO: Create a barrier reset, for the big barrier
-
 // ! IMPORTANT !
 // TODO: At the moment, the syscall restart immediately restarts the program when we get an inactivityTimeout.
 // TODO: This happens so fast that the other elevators never get time to register the elevator as lost before it comes straight back again,
@@ -40,7 +36,6 @@ type CabAck struct {
 	OwnerID string `json:"ownerID"`
 	Floor   int    `json:"floor"`
 	Placed  bool   `json:"placed"`
-	Version int    `json:"version"`
 	AckerID string `json:"ackerID"`
 }
 
@@ -50,7 +45,7 @@ type CabRestore struct {
 	CabOrders [elevator.N_FLOORS]Order
 }
 
-const BARRIER = 60000
+const HALL_SYNC_BARRIER = 70
 
 const TRANSMIT_INTERVAL = 50 * time.Millisecond
 
@@ -65,6 +60,13 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		PeerID:        myID,
 		ElevatorState: elevator.NewStartElevator(startFloor),
 		OrderView:     [elevator.N_FLOORS][elevator.N_BUTTONS]Order{},
+	}
+
+	peersAtHallSyncBarrier := [elevator.N_FLOORS][elevator.N_BUTTONS - 1]map[string]bool{}
+	for floor := 0; floor < elevator.N_FLOORS; floor++ {
+		for button := 0; button < elevator.N_BUTTONS-1; button++ {
+			peersAtHallSyncBarrier[floor][button] = make(map[string]bool)
+		}
 	}
 
 	activePeersList := []string{}
@@ -102,11 +104,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case request := <-localRequest:
 			if request.Button == elevator.B_Cab {
 				myWorldView.OrderView[request.Floor][request.Button].Placed = true
-				if myWorldView.OrderView[request.Floor][request.Button].Version < BARRIER {
-					myWorldView.OrderView[request.Floor][request.Button].Version = BARRIER
-				} else {
-					myWorldView.OrderView[request.Floor][request.Button].Version += 1
-				}
 				myWorldView.OrderView[request.Floor][request.Button].AckList = []string{myID}
 			} else {
 				myWorldView.OrderView[request.Floor][request.Button].Placed = true
@@ -117,11 +114,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 		case request := <-localClearing:
 			if request.Button == elevator.B_Cab {
 				myWorldView.OrderView[request.Floor][request.Button].Placed = false
-				if myWorldView.OrderView[request.Floor][request.Button].Version < BARRIER {
-					myWorldView.OrderView[request.Floor][request.Button].Version = BARRIER
-				} else {
-					myWorldView.OrderView[request.Floor][request.Button].Version += 1
-				}
 				myWorldView.OrderView[request.Floor][request.Button].AckList = []string{myID}
 			} else {
 				myWorldView.OrderView[request.Floor][request.Button].Placed = false
@@ -205,8 +197,15 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				if slices.Contains(lostPeersList, lostID) {
 					log.Printf("Lost peer %s, but it has already been lost", lostID)
 					continue
-				} else {
-					lostPeersList = append(lostPeersList, lostID)
+				}
+
+				lostPeersList = append(lostPeersList, lostID)
+
+				// Update barrier maps
+				for floor := 0; floor < elevator.N_FLOORS; floor++ {
+					for button := 0; button < elevator.N_BUTTONS-1; button++ {
+						delete(peersAtHallSyncBarrier[floor][button], lostID)
+					}
 				}
 
 				// Have to save a full OrderView, but only care about backuping the cabOrders
@@ -221,22 +220,16 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					OrderView:     orderBackup,
 				}
 
-				// ? Blir lostID aldri overskrepet: så vi mister aldri listen?
-				// TODO: Legg til at vi fjerner fra mapet hvis reconnect
 				delete(peerStates, lostID)
 				delete(peerCabOrders, lostID)
 
 			}
 
 			if len(activePeersList) == 0 {
-				//oldWorldView := lastWorldView
 				newWorldView := myWorldView
 
 				for floor := 0; floor < elevator.N_FLOORS; floor++ {
-					if newWorldView.OrderView[floor][elevator.N_BUTTONS-1].Version >= BARRIER {
-						newWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList = addAck(newWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList, myID)
-					}
-					for button := 0; button < elevator.N_BUTTONS-1; button++ {
+					for button := 0; button < elevator.N_BUTTONS; button++ {
 						newWorldView.OrderView[floor][button].AckList = addAck(newWorldView.OrderView[floor][button].AckList, myID)
 					}
 				}
@@ -256,26 +249,12 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			localCabOrders := extractCabOrders(myWorldView.OrderView)
 
 			for floor := 0; floor < elevator.N_FLOORS; floor++ {
-				incomingCabOrder := restore.CabOrders[floor]
+				restoredCabOrder := restore.CabOrders[floor]
 				localCabOrder := localCabOrders[floor]
 
-				restoredCabOrder := incomingCabOrder
+				restoredCabOrder.Placed = (restoredCabOrder.Placed || localCabOrder.Placed)
 				restoredCabOrder.AckList = []string{myID}
-
-				// merge
-				if restoredCabOrder.Version > localCabOrder.Version {
-					myWorldView.OrderView[floor][elevator.N_BUTTONS-1] = restoredCabOrder
-				} else if restoredCabOrder.Version == localCabOrder.Version {
-					if restoredCabOrder.Placed || localCabOrder.Placed {
-						merged := localCabOrder
-						merged.Placed = true
-						merged.AckList = []string{myID}
-						if merged.Version < BARRIER {
-							merged.Version = BARRIER
-						}
-						myWorldView.OrderView[floor][elevator.N_BUTTONS-1] = merged
-					}
-				}
+				myWorldView.OrderView[floor][elevator.N_BUTTONS-1] = restoredCabOrder
 			}
 
 		case incomingWorldView := <-networkRx:
@@ -293,14 +272,8 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				break
 			}
 
-			//fmt.Printf("I am receiving a worldview from someone else: %+v", incomingWorldView)
-
-			// Be aware! We need this for the hallrequestassigner, but we should not trust their requests as our own,
-			// they are only meant to be used as inputs for the HRA
+			// Peer states for hall request assigner
 			peerStates[incomingWorldView.PeerID] = incomingWorldView.ElevatorState
-
-			// TEST FOR OUTOFSERVICE ! ! ! ! ! ! ! ! !
-			//outOfServicePeersList = append(outOfServicePeersList, "2")
 
 			isPeerOutOfService := incomingWorldView.ElevatorState.OutOfService
 			if isPeerOutOfService {
@@ -324,8 +297,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			newWorldView := myWorldView
 
-			// TODO: CabOrder Acklist updating logic
-			// Caborder updating
+			// Caborder acknowledging
 			incomingCabOrders := extractCabOrders(incomingWorldView.OrderView)
 
 			peerCabOrders[incomingWorldView.PeerID] = incomingCabOrders
@@ -333,16 +305,10 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			for floor := 0; floor < elevator.N_FLOORS; floor++ {
 				incomingCabOrder := incomingCabOrders[floor]
 
-				// We only care about cab-orders in barrier-state
-				if incomingCabOrder.Version < BARRIER {
-					continue
-				}
-
 				cabAckTx <- CabAck{
 					OwnerID: incomingWorldView.PeerID,
 					Floor:   floor,
 					Placed:  incomingCabOrder.Placed,
-					Version: int(incomingCabOrder.Version),
 					AckerID: myID,
 				}
 			}
@@ -354,34 +320,94 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					incomingHallOrder := incomingWorldView.OrderView[floor][button]
 					localHallOrder := newWorldView.OrderView[floor][button]
 
-					if localHallOrder.Version > incomingHallOrder.Version {
-						// Ignore orders coming in that are older than you
-						log.Println("I ignored someone else")
-						continue
+					// Debug
+					if floor == 0 && button == 0 {
+						log.Println("Incoming hallorder version:", incomingHallOrder.Version)
+						log.Println("Local hallorder version:", localHallOrder.Version)
+					}
 
-					} else if localHallOrder.Version == incomingHallOrder.Version {
-						if localHallOrder.Placed == incomingHallOrder.Placed {
-							newWorldView.OrderView[floor][button].Placed = localHallOrder.Placed
-							newWorldView.OrderView[floor][button].Version = localHallOrder.Version
-							newWorldView.OrderView[floor][button].AckList = mergeAckLists(localHallOrder.AckList, incomingHallOrder.AckList)
-							newWorldView.OrderView[floor][button].AckList = addAck(newWorldView.OrderView[floor][button].AckList, myID)
-						} else {
-							// This will in the worst case do an order twice, but never miss an order
-							log.Println("I made a compromize with someone else")
-							newWorldView.OrderView[floor][button].Placed = (localHallOrder.Placed || incomingHallOrder.Placed)
-							// Before we were in the middle of either clearing an order or adding one,
-							// we have now started either a new adding or a new clearing, and must clear the acklist and increment the version
-							newWorldView.OrderView[floor][button].Version += 1
-							newWorldView.OrderView[floor][button].AckList = []string{myID}
-						}
+					if localHallOrder.Version < 30 && incomingHallOrder.Version >= HALL_SYNC_BARRIER {
+						// Either we have just wrapped and are waiting for the others, or we are a new peer just joining
+						// In case we are a new peer, we must take OR
+						// This will in the worst case do an order twice, but never miss an order
+						log.Println("I am either a new peer joining or have just wrapped waiting for others")
+						newWorldView.OrderView[floor][button].Placed = (localHallOrder.Placed || incomingHallOrder.Placed)
+						// Before we were in the middle of either clearing an order or adding one,
+						// we have now started either a new adding or a new clearing, and must clear the acklist and increment the version
+						newWorldView.OrderView[floor][button].Version += 1
+						newWorldView.OrderView[floor][button].AckList = []string{myID}
 
-					} else if localHallOrder.Version < incomingHallOrder.Version {
-						// Accept orders that are newer than us
-						//log.Println("I got convinced by someone else")
+						//continue
+					} else if localHallOrder.Version >= HALL_SYNC_BARRIER && incomingHallOrder.Version < 30 {
+						// Accept incoming orders that have just wrapped if we have not wrapped yet, and then we also wrap
+						log.Println("I accept a peer that has wrapped, and now wrap myself!")
 						newWorldView.OrderView[floor][button].Placed = incomingHallOrder.Placed
 						newWorldView.OrderView[floor][button].Version = incomingHallOrder.Version
 						newWorldView.OrderView[floor][button].AckList = mergeAckLists(incomingHallOrder.AckList, []string{myID})
-						//newWorldView.ElevatorState.Requests[floor][button].Version += 1 // ! Needed because we have the merged AckList now
+						peersAtHallSyncBarrier[floor][button] = make(map[string]bool)
+
+					} else {
+						if localHallOrder.Version > incomingHallOrder.Version {
+							// Ignore orders coming in that are older than you
+							log.Println("I ignored someone else")
+							//continue
+
+						} else if localHallOrder.Version == incomingHallOrder.Version {
+							if localHallOrder.Placed == incomingHallOrder.Placed {
+								//newWorldView.OrderView[floor][button].Placed = localHallOrder.Placed
+								//newWorldView.OrderView[floor][button].Version = localHallOrder.Version
+								newWorldView.OrderView[floor][button].AckList = mergeAckLists(localHallOrder.AckList, incomingHallOrder.AckList)
+								newWorldView.OrderView[floor][button].AckList = addAck(newWorldView.OrderView[floor][button].AckList, myID)
+							} else {
+								// This will in the worst case do an order twice, but never miss an order
+								log.Println("I made a compromize with someone else")
+								newWorldView.OrderView[floor][button].Placed = (localHallOrder.Placed || incomingHallOrder.Placed)
+								// Before we were in the middle of either clearing an order or adding one,
+								// we have now started either a new adding or a new clearing, and must clear the acklist and increment the version
+								newWorldView.OrderView[floor][button].Version += 1
+								newWorldView.OrderView[floor][button].AckList = []string{myID}
+							}
+
+						} else if localHallOrder.Version < incomingHallOrder.Version {
+							// Accept orders that are newer than us
+							//log.Println("I got convinced by someone else")
+							newWorldView.OrderView[floor][button].Placed = incomingHallOrder.Placed
+							newWorldView.OrderView[floor][button].Version = incomingHallOrder.Version
+							newWorldView.OrderView[floor][button].AckList = mergeAckLists(incomingHallOrder.AckList, []string{myID})
+							//newWorldView.ElevatorState.Requests[floor][button].Version += 1 // ! Needed because we have the merged AckList now
+						}
+					}
+
+					// Barrier wrap logic
+					incomingHallOrder = incomingWorldView.OrderView[floor][button]
+					localHallOrder = newWorldView.OrderView[floor][button]
+
+					// Check if incoming has max Version
+					if incomingHallOrder.Version >= HALL_SYNC_BARRIER {
+						peersAtHallSyncBarrier[floor][button][incomingWorldView.PeerID] = true
+					} else {
+						delete(peersAtHallSyncBarrier[floor][button], incomingWorldView.PeerID)
+					}
+					// Check if we have max Version
+					if localHallOrder.Version >= HALL_SYNC_BARRIER {
+						peersAtHallSyncBarrier[floor][button][myID] = true
+					} else {
+						delete(peersAtHallSyncBarrier[floor][button], myID)
+					}
+					// Wrap Version to 0 once all known peers are at barrier
+					if localHallOrder.Version >= HALL_SYNC_BARRIER {
+						allAtHallSyncBarrier := true
+						for _, peerID := range activePeersList {
+							if !peersAtHallSyncBarrier[floor][button][peerID] {
+								allAtHallSyncBarrier = false
+								break
+							}
+						}
+						if allAtHallSyncBarrier {
+							log.Println("I have counted it is safe to reset")
+							newWorldView.OrderView[floor][button].Version = 0
+							peersAtHallSyncBarrier[floor][button] = make(map[string]bool)
+						}
 					}
 
 				}
@@ -401,12 +427,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 			localCabOrder := myWorldView.OrderView[cabAck.Floor][elevator.N_BUTTONS-1]
 
-			if localCabOrder.Version < BARRIER {
-				break
-			}
-			if localCabOrder.Version != uint16(cabAck.Version) {
-				break
-			}
 			if localCabOrder.Placed != cabAck.Placed {
 				break
 			}

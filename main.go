@@ -127,6 +127,7 @@ func main() {
 		case <-startMotorStallTimer:
 			resetMotorStallTimer <- true
 
+		// Do not add restart in testing yet
 		case <-restart:
 			/*
 				log.Println("Restarting")
