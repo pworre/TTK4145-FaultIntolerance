@@ -1,13 +1,14 @@
-package processpairs
+package processPairs
 
 import (
+	"elevator_project/syncOrders"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
-	"syncOrders/syncOrders"
+	"runtime"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type State struct {
 }
 
 const (
-	broadcastInterval = 100 * time.Millisecond
+	broadcastInterval = 50 * time.Millisecond
 	primaryTimeOut    = 3 * broadcastInterval
 	port              = 3000
 )
@@ -27,27 +28,35 @@ const (
 // Receiving net.ListenUDP
 
 func spawnBackup(peerID string) {
-	dir, erro := os.Getwd()
-	if erro != nil {
-		panic(erro)
+	dir, err := os.Getwd()
+	if err != nil {
+		panic(err)
 	}
 
-	cmd := fmt.Sprintf(`tell app "Terminal" to do script "cd ../%s; go run main.go --id=%s"`, dir, peerID)
+	switch runtime.GOOS {
+	case "darwin":
+		cmdStr := fmt.Sprintf(`tell app "Terminal" to do script "cd %s; go run main.go --id=%s"`, dir, peerID)
+		err = exec.Command("osascript", "-e", cmdStr).Run()
+	case "linux":
+		cmd := exec.Command("go", "run", "main.go", "--id="+peerID)
+		cmd.Dir = dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
-	err := exec.Command(
-		"osascript",
-		"-e",
-		cmd,
-	).Run()
+		err = cmd.Start()
+
+	case "windows":
+		err = fmt.Errorf("windows not implemented")
+	default:
+		err = fmt.Errorf("OS not supported")
+	}
 
 	if err != nil {
 		panic(err)
 	}
 }
 
-func RunProcessPairs(
-	IncomingWorldView <-chan syncOrders.WorldView,
-) {
+func RunProcessPairs(worldViewCh <-chan syncOrders.WorldView) {
 	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		log.Println("Failed to resolve UDP receive Addr")
@@ -68,17 +77,28 @@ func RunProcessPairs(
 		conn.SetReadDeadline(time.Now().Add(broadcastInterval))
 
 		select {
-		case latestWorldView := <-IncomingWorldView:
+		case latestWorldView := <-worldViewCh:
 			state.CurrentWorldView = latestWorldView
 		default:
 		}
-		numBytes, _, _ := conn.ReadFromUDP(buf)
-		var incoming State
-		json.Unmarshal(buf[:numBytes], &incoming)
 
-		if incoming.IsPrimary {
-			lastPrimary = time.Now()
-			state.CurrentWorldView = incoming.CurrentWorldView
+		numBytes, _, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			if netErr, valid := err.(net.Error); valid && netErr.Timeout() {
+
+			} else {
+				log.Println("ReadFromUDP failed:", err)
+			}
+		} else {
+			var incoming State
+
+			err := json.Unmarshal(buf[:numBytes], &incoming)
+			if err != nil {
+				log.Println("Unmarshal failed:", err)
+			} else if incoming.IsPrimary {
+				lastPrimary = time.Now()
+				state.CurrentWorldView = incoming.CurrentWorldView
+			}
 		}
 
 		if time.Since(lastPrimary) > primaryTimeOut {
@@ -104,7 +124,7 @@ func RunProcessPairs(
 	// Primary loop
 	for {
 		select {
-		case latestWorldView := <-IncomingWorldView:
+		case latestWorldView := <-worldViewCh:
 			state.CurrentWorldView = latestWorldView
 		default:
 		}
@@ -112,9 +132,10 @@ func RunProcessPairs(
 		data, err := json.Marshal(state)
 		if err != nil {
 			log.Printf("Failed to make json of state to send")
-			sendConn.Write(data)
-			time.Sleep(broadcastInterval)
+			continue
 		}
+		sendConn.Write(data)
+		time.Sleep(broadcastInterval)
 
 	}
 }

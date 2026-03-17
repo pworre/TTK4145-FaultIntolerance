@@ -58,7 +58,10 @@ const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
 const CAB_RESTORE_BCAST_PORT = 40106
 
-func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool) {
+func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator,
+	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent,
+	localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
+	activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool, worldViewCh chan WorldView) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -417,6 +420,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			// Send myWorldView
 			networkTx <- myWorldView
 			//log.Println("Hopefully sent something!")
+			worldViewCh <- myWorldView
 		}
 
 		if confirmedPlacementsChanged(myWorldView, lastConfirmedPlacements, activePeersList) || shouldReassign {

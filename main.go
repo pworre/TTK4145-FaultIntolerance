@@ -5,6 +5,7 @@ import (
 	"elevatorControl/fsm"
 	"elevatorControl/timer"
 	"elevator_project/config"
+	"elevator_project/processPairs"
 	"elevator_project/syncOrders"
 	"fmt"
 	"log"
@@ -58,6 +59,8 @@ func main() {
 	resetMotorStallTimer := make(chan bool)
 	noMotorStall := make(chan bool)
 
+	worldViewCh := make(chan syncOrders.WorldView)
+
 	// Restart channel
 	restart := make(chan bool, 64)
 
@@ -77,7 +80,7 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
@@ -94,6 +97,8 @@ func main() {
 		obstructionEvent, motorStallTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
 		localStateChange, allActivePeers)
+
+	go processPairs.RunProcessPairs(worldViewCh)
 
 	// Hardware action handling
 	for {
