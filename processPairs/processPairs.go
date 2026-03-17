@@ -45,7 +45,10 @@ func spawnBackup(peerID string) {
 	}
 }
 
-func main() {
+func RunProcessPairs(
+	IncomingWorldView <-chan syncOrders.WorldView,
+	TransmitTakover chan<- syncOrders.WorldView,
+) {
 	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		log.Println("Failed to resolve UDP receive Addr")
@@ -57,31 +60,35 @@ func main() {
 	}
 	defer conn.Close()
 
-	state := State{Counter: 0, IsPrimary: false}
+	state := State{IsPrimary: false}
 	lastPrimary := time.Now()
-
-	conn.SetReadDeadline(time.Now().Add(broadcastInterval))
 
 	// Backup loop
 	buf := make([]byte, 1024)
 	for {
 		conn.SetReadDeadline(time.Now().Add(broadcastInterval))
 
+		select {
+		case latestWorldView := <-IncomingWorldView:
+			state.CurrentWorldView = latestWorldView
+		default:
+		}
 		numBytes, _, _ := conn.ReadFromUDP(buf)
 		var incoming State
 		json.Unmarshal(buf[:numBytes], &incoming)
 
 		if incoming.IsPrimary {
 			lastPrimary = time.Now()
-			state.Counter = incoming.Counter
+			state.CurrentWorldView = incoming.CurrentWorldView
 		}
 
 		if time.Since(lastPrimary) > primaryTimeOut {
 			break
 		}
 	}
-
+	TransmitTakover <- state.CurrentWorldView
 	conn.Close()
+
 	spawnBackup(state.CurrentWorldView.PeerID)
 	state.IsPrimary = true
 
@@ -98,15 +105,18 @@ func main() {
 
 	// Primary loop
 	for {
-		state.Counter++
-		fmt.Printf("Counter: %d\n", state.Counter)
+		select {
+		case latestWorldView := <-IncomingWorldView:
+			state.CurrentWorldView = latestWorldView
+		default:
+		}
 
 		data, err := json.Marshal(state)
 		if err != nil {
 			log.Printf("Failed to make json of state to send")
+			sendConn.Write(data)
+			time.Sleep(broadcastInterval)
 		}
-		sendConn.Write(data)
 
-		time.Sleep(broadcastInterval)
 	}
 }
