@@ -26,13 +26,13 @@ const (
 // Sending net.DialUDP
 // Receiving net.ListenUDP
 
-func spawnBackup() {
+func spawnBackup(peerID string) {
 	dir, erro := os.Getwd()
 	if erro != nil {
 		panic(erro)
 	}
 
-	cmd := fmt.Sprintf(`tell app "Terminal" to do script "cd %s; go run main.go --id=%s --port=%d"`, dir, syncOrders.WorldView.PeerID)
+	cmd := fmt.Sprintf(`tell app "Terminal" to do script "cd ../%s; go run main.go --id=%s"`, dir, peerID)
 
 	err := exec.Command(
 		"osascript",
@@ -82,7 +82,7 @@ func main() {
 	}
 
 	conn.Close()
-	spawnBackup()
+	spawnBackup(state.CurrentWorldView.PeerID)
 	state.IsPrimary = true
 
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", port))
