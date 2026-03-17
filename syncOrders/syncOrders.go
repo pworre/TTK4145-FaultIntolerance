@@ -11,11 +11,18 @@ import (
 	"time"
 )
 
-// TODO: Create a barrier reset, for the big barrier
-// TODO: Do an actual OS exit
+// Really only to big things left:
 
-// PEW:
-// TODO: Make a merging sequence for orderCompletedWhileDisconnected and ordersTobeRestored
+// TODO: Create a barrier reset, for the big barrier
+
+// ! IMPORTANT !
+// TODO: At the moment, the syscall restart immediately restarts the program when we get an inactivityTimeout.
+// TODO: This happens so fast that the other elevators never get time to register the elevator as lost before it comes straight back again,
+// TODO: which means that we never save a backup, and the new instance starts with fresh, empty orders...
+// TODO: We need to find a fix for this, either storing the last state locally (but then need several copies),
+// TODO: or waiting for peers to save our backup before we can restart.
+// TODO: We can also solve this with a process peers backup that we continually write our state to such that it can take over,
+// TODO: that is what MArius and Eskil does, but we must see what is best for us...
 
 type Order struct {
 	Placed  bool
@@ -51,7 +58,7 @@ const G_BCAST_PORT = 40104
 const CAB_ACK_BCAST_PORT = 40105
 const CAB_RESTORE_BCAST_PORT = 40106
 
-func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string) {
+func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator, assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -129,6 +136,20 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			}
 
 			shouldReassign = true
+
+		case <-inactivityTimeout:
+
+			// Can only restart if we are not alone
+			if len(activePeersList) > 0 {
+				//os.Exit(2)
+				log.Printf("OS exit should be done here")
+				log.Printf("allPeersStillActive: %v", activePeersList)
+				restart <- true
+			} else {
+				log.Println("Dude, is this what happens???")
+				log.Println("PeersStillActive:", activePeersList)
+				stillActive <- true
+			}
 
 		case newPeerUpdate := <-peerUpdate:
 			oldActivePeersList := activePeersList
@@ -440,6 +461,13 @@ func assignOrders(myID string, myState elevator.Elevator, placements [elevator.N
 		if !slices.Contains(outOfServiceList, peerID) {
 			allServicableElevatorIDs = append(allServicableElevatorIDs, peerID)
 		}
+	}
+
+	// If we are in the case of being alone, but also unable to service orders,
+	// we must take the assignment anyway, and just not be able to service it
+	if len(allServicableElevatorIDs) == 0 {
+		assignEvent <- placements
+		return
 	}
 	log.Printf("All servicable elevators: %v", allServicableElevatorIDs)
 

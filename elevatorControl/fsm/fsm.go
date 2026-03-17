@@ -20,11 +20,9 @@ func StateMachineLoop(startFloor int,
 	openDoor chan bool, closeDoor chan bool,
 	keepDoorOpen chan bool, doorTimeout chan bool,
 	obstructionEvent chan bool, motorStallTimeout chan bool,
-	inactivityTimeout chan bool, startMotorStallTimer chan bool,
+	startMotorStallTimer chan bool,
 	noMotorStall chan bool, stillActive chan bool,
-	localStateChange chan elevator.Elevator, activePeersChan <-chan []string, restart chan bool) {
-
-	var allPeersStillActive []string
+	localStateChange chan elevator.Elevator, activePeersChan <-chan []string) {
 
 	elev := elevator.NewStartElevator(startFloor)
 
@@ -71,21 +69,6 @@ func StateMachineLoop(startFloor int,
 			}
 			stillActive <- true
 
-		case updatedActivePeers := <-activePeersChan: // Timing logic incase of only one peer active
-			allPeersStillActive = updatedActivePeers
-
-		case <-inactivityTimeout:
-
-			// Can only restart if we are not alone
-			if len(allPeersStillActive) > 0 {
-				//os.Exit(2)
-				restart <- true
-				log.Printf("OS exit should be done here")
-				log.Printf("allPeersStillActive: %v", allPeersStillActive)
-			} else {
-				stillActive <- true
-			}
-
 		case <-motorStallTimeout:
 			log.Println("Motorstall timeout, but elevator not moving")
 			if elev.Behaviour == elevator.EB_Moving {
@@ -116,7 +99,6 @@ func OnButtonPress(currentState elevator.Elevator, btnFloor int, btnType elevato
 	case elevator.EB_DoorOpen:
 		if requests.ShouldClearImmediately(nextState, btnFloor, btnType) {
 			keepDoorOpen <- true
-			stillActive <- true
 		} else {
 			// Add request to worldview
 			localRequest <- elevator.ButtonEvent{Floor: btnFloor, Button: btnType}
@@ -335,19 +317,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			nextState.Behaviour = elevator.EB_DoorOpen
 			nextState.Behaviour = elevator.D_Stop
 		}
-
-		//case elevator.EB_Idle:
-		//	if !nextState.OutOfService {
-		//		closeDoor <- true
-		//	}
 	}
-	// ! Try commenting out, should work !
-	//if nextState.OutOfService {
-	//	changeMotorDirection <- elevator.D_Stop
-	//	nextState.Behaviour = elevator.D_Stop
-	//	openDoor <- true
-	//	nextState.Behaviour = elevator.EB_DoorOpen
-	//}
 
 	stillActive <- true
 

@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"log"
 	"networkDriver/peers"
-	"os"
-	"syscall"
+	//"os"
+	//"syscall"
 )
 
 const PEERS_PORT int = 40131
@@ -59,7 +59,7 @@ func main() {
 	noMotorStall := make(chan bool)
 
 	// Restart channel
-	restart := make(chan bool)
+	restart := make(chan bool, 64)
 
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
@@ -77,7 +77,7 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
@@ -91,9 +91,9 @@ func main() {
 		assignEvent, localRequest, localClearing,
 		floorEvent, setFloorIndicator, changeMotorDirection,
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
-		obstructionEvent, motorStallTimeout, inactivityTimeout,
+		obstructionEvent, motorStallTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
-		localStateChange, allActivePeers, restart)
+		localStateChange, allActivePeers)
 
 	// Hardware action handling
 	for {
@@ -128,16 +128,22 @@ func main() {
 			resetMotorStallTimer <- true
 
 		case <-restart:
-			log.Println("Restarting now!!!!!!!!!!!!!!!!!!!!!")
-			exe, err := os.Executable()
-			if err != nil {
-				log.Println("Restart error")
-			}
+			/*
+				log.Println("Restarting")
+				exe, err := os.Executable()
+				if err != nil {
+					log.Printf("Oh no! os.Executable failed: %v", err)
+					continue
+				}
 
-			args := append([]string{exe}, os.Args[1:]...)
-			env := os.Environ()
+				args := append([]string{exe}, os.Args[1:]...)
+				env := os.Environ()
 
-			syscall.Exec(exe, args, env)
+				//syscall.Exec(exe, args, env)
+				if err := syscall.Exec(exe, args, env); err != nil {
+					log.Printf("Oh no! syscall.Exec failed: %v", err)
+				}
+			*/
 		}
 	}
 }
