@@ -1,13 +1,13 @@
 package processpairs
 
 import (
-	"elevator_project/syncOrders"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"syncOrders/syncOrders"
 	"time"
 )
 
@@ -47,7 +47,6 @@ func spawnBackup(peerID string) {
 
 func RunProcessPairs(
 	IncomingWorldView <-chan syncOrders.WorldView,
-	TransmitTakover chan<- syncOrders.WorldView,
 ) {
 	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
@@ -86,7 +85,6 @@ func RunProcessPairs(
 			break
 		}
 	}
-	TransmitTakover <- state.CurrentWorldView
 	conn.Close()
 
 	spawnBackup(state.CurrentWorldView.PeerID)
