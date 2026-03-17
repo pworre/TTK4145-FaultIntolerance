@@ -22,12 +22,12 @@ git submodule update --init --recursive
 echo "Making hall_request_assigner build script executable..."
 chmod +x build.sh
 
-echo "Building hall_request_assigner..."
-./build.sh ../../../../elevatorControl/hallRequestAssigner
-cd ../../../..
+echo "Running hra-installer..."
+./script/hra_install.sh
 
 echo "Starting elevator server..."
 elevatorserver --port=$X_PORT &
 
 echo "Running Go program..."
 go run main.go --id=$X_ID --port=$X_PORT
+
