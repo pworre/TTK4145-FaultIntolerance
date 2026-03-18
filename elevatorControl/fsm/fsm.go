@@ -257,7 +257,7 @@ func OnFloorArrival(currentState elevator.Elevator,
 	}
 	if nextState.OutOfService {
 		changeMotorDirection <- elevator.D_Stop
-		nextState.Behaviour = elevator.D_Stop
+		nextState.Direction = elevator.D_Stop
 		openDoor <- true
 		nextState.Behaviour = elevator.EB_DoorOpen
 	}
@@ -315,7 +315,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		if nextState.OutOfService {
 			keepDoorOpen <- true
 			nextState.Behaviour = elevator.EB_DoorOpen
-			nextState.Behaviour = elevator.D_Stop
+			nextState.Direction = elevator.D_Stop
 		}
 	}
 

@@ -56,7 +56,7 @@ const CAB_RESTORE_BCAST_PORT = 40106
 func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange chan elevator.Elevator,
 	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, localRequest chan elevator.ButtonEvent,
 	localClearing chan elevator.ButtonEvent, peerUpdate chan peers.PeerUpdate, setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
-	activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool, worldViewCh chan WorldView, restoredWorldViewCh chan WorldView) {
+	activePeersChan chan []string, inactivityTimeout chan bool, restart chan bool, stillActive chan bool, worldViewCh chan WorldView, syncRestoreWorldViewCh chan WorldView) {
 
 	myID := cfg.ID
 	myWorldView := WorldView{
@@ -259,17 +259,19 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 				restoredCabOrder.AckList = []string{myID}
 				myWorldView.OrderView[floor][elevator.N_BUTTONS-1] = restoredCabOrder
 			}
-		case restored := <-restoredWorldViewCh:
-			log.Printf("Restoring worldiew from processPairs for peer %s", restored.PeerID)
 
-			myWorldView.OrderView = restored.OrderView
-			myWorldView.ElevatorState = restored.ElevatorState
-			myWorldView.PeerID = myID
+		case restored := <-syncRestoreWorldViewCh:
+			if restored.PeerID != myID {
+				log.Printf("Very weird, I got a process peers restore from a different process")
+				break
+			}
+			log.Printf("Restoring worldview from processPairs for peer %s", restored.PeerID)
+
+			myWorldView = restored
 
 			for floor := 0; floor < elevator.N_FLOORS; floor++ {
-				cab := &myWorldView.OrderView[floor][elevator.N_BUTTONS-1]
-				cab.AckList = addAck(cab.AckList, myID)
-				lastConfirmedPlacements[floor][elevator.N_BUTTONS-1] = cab.Placed
+				myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList = addAck(myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList, myID)
+				lastConfirmedPlacements[floor][elevator.N_BUTTONS-1] = myWorldView.OrderView[floor][elevator.N_BUTTONS-1].Placed
 			}
 
 			shouldReassign = true

@@ -20,15 +20,37 @@ func main() {
 
 	cfg := config.ParseFlag()
 
-	// - - - - - - Initilizing - - - - - - -
+	// - - - - - - ProcessPairs logic - - - - - - -
+
+	worldViewCh := make(chan syncOrders.WorldView, 64)
+	takeOverWorldViewCh := make(chan syncOrders.WorldView, 64)
+	syncRestoreWorldViewCh := make(chan syncOrders.WorldView, 64)
+	becamePrimaryCh := make(chan bool, 64)
+	restart := make(chan bool, 64)
+
+	go processPairs.RunProcessPairs(cfg, worldViewCh, takeOverWorldViewCh, becamePrimaryCh, restart)
+
+	if cfg.Backup {
+		log.Printf("Starting PASSIVE BACKUP for elevator %s with port %d....", cfg.ID, cfg.Port)
+
+		takeOverWorldView := <-takeOverWorldViewCh
+		<-becamePrimaryCh // Block until we get promoted to primary
+
+		log.Printf("Backup for elevator %s taking over as primary", cfg.ID)
+		syncRestoreWorldViewCh <- takeOverWorldView
+
+	} else {
+		log.Printf("Starting PRIMARY elevator %s with port %d....", cfg.ID, cfg.Port)
+	}
+
+	// - - - - - - Initializing - - - - - - -
 	log.Printf("Initializing Elevator %s with port %d....", cfg.ID, cfg.Port)
 	startFloor := elevator.HardwareInit(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
 
-	// ! For debugging, obstruction is not yet implemented
 	//for elevator.GetObstruction() {
-	//	elevator.DoorLight(true)
+	//	elevator.SetDoorLight(true)
 	//}
-	//elevator.DoorLight(false)
+	//elevator.SetDoorLight(false)
 
 	log.Printf("Elevator %s is now at floor %d! Joining network for service...", cfg.ID, startFloor)
 
@@ -59,12 +81,6 @@ func main() {
 	resetMotorStallTimer := make(chan bool)
 	noMotorStall := make(chan bool)
 
-	worldViewCh := make(chan syncOrders.WorldView, 1)
-	restoreWorldViewCh := make(chan syncOrders.WorldView, 1)
-
-	// Restart channel
-	restart := make(chan bool, 512)
-
 	// Channels for orders
 	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
 
@@ -81,7 +97,7 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh, restoreWorldViewCh)
+	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh, syncRestoreWorldViewCh)
 
 	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
 
@@ -98,8 +114,6 @@ func main() {
 		obstructionEvent, motorStallTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
 		localStateChange, allActivePeers)
-
-	go processPairs.RunProcessPairs(worldViewCh, restoreWorldViewCh, restart, cfg)
 
 	// Hardware action handling
 	for {
@@ -132,7 +146,7 @@ func main() {
 
 		case <-startMotorStallTimer:
 			resetMotorStallTimer <- true
-			
+
 		}
 	}
 }
