@@ -1,15 +1,18 @@
 package config
 
+// - - - - - - Overview - - - - - - - - -
+
+// This file contains configuration for command line arguments.
+// An ID must be set in order for an elevator to join the network. This must be unique and set manually at each PC.
+// The port argument is the TCP port used to connect to the elevatorserver, and has a default option.
+// The backup arguments signals that the process should be started as a backup in a process-pairs configuration,
+// with default being false.
+
 import (
 	"flag"
 	"fmt"
 	"os"
 )
-
-// CONTENT: This file contains config for arguments in terminal when running the program.
-// 			An ID must be set in order for an elevator to work on the network.
-//			This must be unique and set manually at each PC.
-//			The port and backup arguments have default options.
 
 type Config struct {
 	ID     string

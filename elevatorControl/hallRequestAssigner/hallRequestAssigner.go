@@ -2,7 +2,8 @@ package hallRequestAssigner
 
 // - - - - - - Overview - - - - - - - - -
 
-// Hall request assigner
+// This module implements an interface for using the hall_request_assigner executable in the same folder.
+// It defines input and output types to the assigner, as well as encode-, decode- and assign-functions to run the executable
 
 import (
 	"elevatorControl/elevator"
@@ -12,9 +13,8 @@ import (
 	"runtime"
 )
 
-// Struct members must be public in order to be accessible by json.Marshal/.Unmarshal
-// This means they must start with a capital letter, so we need to use field renaming struct tags to make them camelCase
-
+// Struct members must be public in order to be accessible by json.Marshal/json.Unmarshal
+// In golang, this means they must start with a capital letter, so we need to use field renaming struct tags to make them camelCase
 type HRAElevState struct {
 	Behavior    string `json:"behaviour"`
 	Floor       int    `json:"floor"`
@@ -23,8 +23,8 @@ type HRAElevState struct {
 }
 
 type HRAInput struct {
-	HallRequests [][elevator.N_BUTTONS-1]bool               `json:"hallRequests"`
-	States       map[string]HRAElevState `json:"states"`
+	HallRequests [][elevator.N_BUTTONS - 1]bool `json:"hallRequests"`
+	States       map[string]HRAElevState        `json:"states"`
 }
 
 type OrderAssignments map[string][elevator.N_FLOORS][elevator.N_BUTTONS]bool
@@ -60,7 +60,6 @@ func AssignOrders(jsonString string) string {
 		panic("OS not supported")
 	}
 
-	//log.Printf("running %s with input: %s\n", hraExecutable, jsonString)
 	out, err := exec.Command("./elevatorControl/hallRequestAssigner/"+hraExecutable, "--includeCab", "-i", (jsonString)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)

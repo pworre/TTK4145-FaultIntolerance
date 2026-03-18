@@ -1,10 +1,12 @@
 package timer
 
-import "time"
+// - - - - - - Overview - - - - - - - - -
 
-// CONTENT: Timers for timer-logics for door-closing, motor-stalling and inactivity detection
-//			SafeStop- and SafeReset-functions for avoiding a signal to be on timer.C after
-//			trying to stop.
+// This module cointains an implementation for running three different timers concurrently.
+// The timers can be started, stopped and reset via message channels from other threads,
+// and timeouts are signalled via message passing to other threads
+
+import "time"
 
 const DOOR_OPEN_DURATION = 3 * time.Second
 const INACTIVITY_TIMEOUT = 9 * time.Second
@@ -26,16 +28,22 @@ func Timers(resetDoorTimer chan bool, resetInactivityTimer chan bool, resetMotor
 		select {
 		case <-resetDoorTimer:
 			safeReset(doorTimer, DOOR_OPEN_DURATION)
+
 		case <-resetInactivityTimer:
 			safeReset(inactivityTimer, INACTIVITY_TIMEOUT)
+
 		case <-resetMotorStallTimer:
 			safeReset(motorStallTimer, MOTOR_STALL_TIMEOUT)
+
 		case <-stopMotorStallTimer:
 			safeStop(motorStallTimer)
+
 		case <-doorTimer.C:
 			doorTimeout <- true
+
 		case <-inactivityTimer.C:
 			inactivityTimeout <- true
+
 		case <-motorStallTimer.C:
 			motorStallTimeout <- true
 		}

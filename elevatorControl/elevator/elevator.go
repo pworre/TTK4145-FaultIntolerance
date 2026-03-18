@@ -1,11 +1,12 @@
 package elevator
 
+// - - - - - - Overview - - - - - - - - -
+
+// This module cointains data types and methods for representing a physical elevator as a software abstraction
+
 import (
 	"elevatorDriver/elevio"
 )
-
-// CONTENT: This module takes polling from button and elevator functions from elevio
-//			and takes it into elevator-struct for use in other modules.
 
 const N_FLOORS = 4
 const N_BUTTONS = 3
@@ -57,7 +58,7 @@ func NewStartElevator(startFloor int) Elevator {
 }
 
 // These functions exist to maintain that all interactions with the psysical world go through the elevator module,
-// maintaining good module separation and simplifying module interfaces
+// maintaining the elevator abstraction
 
 func PollFloorSensor(floorEvent chan int) {
 	elevio.PollFloorSensor(floorEvent)
@@ -84,6 +85,17 @@ func setRequestButtonLight(floor int, button Button, value bool) {
 	elevio.SetButtonLamp(elevio.ButtonType(button), floor, value)
 }
 
+func PollButtons(buttonEvent chan ButtonEvent) {
+	btnEvent := make(chan elevio.ButtonEvent)
+
+	// Passing all elevio ButtonEvents to elevator ButtonEvents
+	go elevio.PollButtons(btnEvent)
+	for {
+		event := <-btnEvent
+		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
+	}
+}
+
 func SetAllLights(requests [N_FLOORS][N_BUTTONS]bool) {
 	for floor := 0; floor < N_FLOORS; floor++ {
 		for btn := 0; btn < N_BUTTONS; btn++ {
@@ -105,15 +117,4 @@ func HardwareInit(addr string, numFloors int) int {
 	SetMotorDirection(D_Stop)
 
 	return GetFloor()
-}
-
-func PollButtons(buttonEvent chan ButtonEvent) {
-	btnEvent := make(chan elevio.ButtonEvent)
-
-	// Passing all elevio ButtonEvents to elevator ButtonEvents
-	go elevio.PollButtons(btnEvent)
-	for {
-		event := <-btnEvent
-		buttonEvent <- ButtonEvent{event.Floor, Button(event.Button)}
-	}
 }

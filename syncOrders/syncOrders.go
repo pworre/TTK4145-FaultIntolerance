@@ -10,6 +10,8 @@ import (
 	"slices"
 	"time"
 )
+rrr
+go run -race!!!!!!
 
 // CONTENT: This module contains the distributed order synchronization for the elevator system.
 //			It sends its own worldView and receives from other peers, including cab- and hallOrders.

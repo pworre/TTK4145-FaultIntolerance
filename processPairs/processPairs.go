@@ -76,14 +76,14 @@ func spawnBackup(cfg config.Config) error {
 		return fmt.Errorf("No supperted terminal for linux")
 
 	case "windows":
-		return fmt.Errorf("windows not implemented")
+		return fmt.Errorf("Windows not implemented")
 
 	default:
 		return fmt.Errorf("OS not supported")
 	}
 }
 
-func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView, takeOverWorldViewCh chan syncOrders.WorldView, becamePrimaryCh chan bool, restart chan bool) {
+func RunProcessPairs(cfg config.Config, backupState <-chan syncOrders.WorldView, takeOver chan syncOrders.WorldView, restart chan bool) {
 
 	peerID_int, err := strconv.Atoi(cfg.ID)
 	if err != nil {
@@ -159,8 +159,7 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	}
 
 	log.Printf("Sending restored worldview with cab orders: %+v", state.CurrentWorldView)
-	takeOverWorldViewCh <- state.CurrentWorldView
-	becamePrimaryCh <- true
+	takeOver <- state.CurrentWorldView
 
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.2:%d", processPairPort))
 	if err != nil {
@@ -176,25 +175,24 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	// Primary loop
 	for {
 		select {
-		case latestWorldView := <-worldViewCh:
+		case latestWorldView := <-backupWorldView:
 			state.CurrentWorldView = latestWorldView
 
-		case needRestart := <-restart:
-			if needRestart {
-				state.Restart = true
+		case <-restart:
+			state.Restart = true
 
-				// Send one last state and end
-				data, err := json.Marshal(state)
-				if err == nil {
-					_, err = sendConn.Write(data)
-					if err != nil {
-						log.Println("Failed to send restart state:", err)
-					}
+			// Send one last state and end
+			data, err := json.Marshal(state)
+			if err == nil {
+				_, err = sendConn.Write(data)
+				if err != nil {
+					log.Println("Failed to send restart state:", err)
 				}
-
-				log.Println("Primary requested restart!")
-				os.Exit(0)
 			}
+
+			log.Println("Primary requested restart!")
+			os.Exit(0)
+
 		default:
 		}
 
