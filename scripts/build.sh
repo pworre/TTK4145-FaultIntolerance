@@ -35,4 +35,5 @@ gnome-terminal -- bash -c "elevatorserver --port=$X_PORT; exec bash"
 sleep 1
 
 echo "Running Go program..."
+cd ..
 go run main.go --id=$X_ID --port=$X_PORT
