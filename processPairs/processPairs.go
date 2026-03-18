@@ -162,7 +162,7 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	takeOverWorldViewCh <- state.CurrentWorldView
 	becamePrimaryCh <- true
 
-	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", processPairPort))
+	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.2:%d", processPairPort))
 	if err != nil {
 		log.Println("Failed to resolve UDP send adress")
 	}
