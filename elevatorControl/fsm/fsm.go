@@ -5,7 +5,6 @@ import (
 	"elevatorControl/requests"
 	"fmt"
 	"log"
-	//"os"
 )
 
 // CONTENT: This module contains finite state machine. It contains inputs such as button presses, new order-assignments, arriving floors,
