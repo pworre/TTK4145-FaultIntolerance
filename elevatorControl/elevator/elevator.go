@@ -4,6 +4,9 @@ import (
 	"elevatorDriver/elevio"
 )
 
+// CONTENT: This module takes polling from button and elevator functions from elevio
+//			and takes it into elevator-struct for use in other modules.
+
 const N_FLOORS = 4
 const N_BUTTONS = 3
 

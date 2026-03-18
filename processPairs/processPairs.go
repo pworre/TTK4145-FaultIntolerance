@@ -26,6 +26,8 @@ const (
 	PROCESSPAIR_BASEPORT = 3000
 )
 
+// CONTENT: This module is securing process pairs for restarting the program if we have timeouts.
+
 // Broadcast 255.255.255.255:<port>
 // Sending net.DialUDP
 // Receiving net.ListenUDP
@@ -80,39 +82,6 @@ func spawnBackup(cfg config.Config) error {
 		return fmt.Errorf("OS not supported")
 	}
 }
-
-/*
-func spawnBackup(cfg config.Config) error {
-	dir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getwd: %w", err)
-	}
-
-	args := []string{
-		"run", "main.go",
-		"-id=" + cfg.ID,
-		"-port=" + strconv.Itoa(cfg.Port),
-		"-backup=true",
-	}
-
-	cmd := exec.Command("go", args...)
-	cmd.Dir = dir
-
-	logFile, err := os.OpenFile("backup.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return fmt.Errorf("open backup log: %w", err)
-	}
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start backup: %w", err)
-	}
-
-	log.Printf("Spawned backup PID=%d", cmd.Process.Pid)
-	return nil
-}
-*/
 
 func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView, takeOverWorldViewCh chan syncOrders.WorldView, becamePrimaryCh chan bool, restart chan bool) {
 

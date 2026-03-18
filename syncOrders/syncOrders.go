@@ -11,14 +11,9 @@ import (
 	"time"
 )
 
-// ! IMPORTANT !
-// TODO: At the moment, the syscall restart immediately restarts the program when we get an inactivityTimeout.
-// TODO: This happens so fast that the other elevators never get time to register the elevator as lost before it comes straight back again,
-// TODO: which means that we never save a backup, and the new instance starts with fresh, empty orders...
-// TODO: We need to find a fix for this, either storing the last state locally (but then need several copies),
-// TODO: or waiting for peers to save our backup before we can restart.
-// TODO: We can also solve this with a process peers backup that we continually write our state to such that it can take over,
-// TODO: that is what MArius and Eskil does, but we must see what is best for us...
+// CONTENT: This module contains the distributed order synchronization for the elevator system.
+//			It sends its own worldView and receives from other peers, including cab- and hallOrders.
+//			Every order has its own ackList (acknowledge) securing contract guarantee for light and orders.
 
 type Order struct {
 	Placed  bool
@@ -126,9 +121,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 		case newLocalState := <-localStateChange:
 			myWorldView.ElevatorState = newLocalState
-			if !slices.Contains(outOfServicePeersList, myID) {
-				outOfServicePeersList = append(outOfServicePeersList, myID)
-			}
 
 			shouldReassign = true
 
@@ -146,7 +138,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			}
 
 		case newPeerUpdate := <-peerUpdate:
-			//inactivityTimeout <- true
 			oldActivePeersList := activePeersList
 			newActivePeersList := newPeerUpdate.Peers
 
@@ -168,14 +159,11 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 							// Retrieve backup
 							peerStates[id] = backup.ElevatorState
-							//peerCabOrders[id] = backup.CabOrders
 
-							// ! OBS ! We SHOULD have an check before assigning peerStates and peerCabOrders
 							cabRestoreTx <- CabRestore{
 								TargetID:  id,
 								SenderID:  myID,
 								CabOrders: extractCabOrders(backup.OrderView),
-								//CabOrders: backup.CabOrders,
 							}
 
 							delete(lostPeerBackupStates, id)
@@ -262,7 +250,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 		case restored := <-syncRestoreWorldViewCh:
 			if restored.PeerID != myID {
-				log.Printf("Very weird, I got a process peers restore from a different process")
+				log.Printf("WARNING: Received a process pair restore from a different process")
 				break
 			}
 			log.Printf("Restoring worldview from processPairs for peer %s", restored.PeerID)
@@ -339,12 +327,6 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					incomingHallOrder := incomingWorldView.OrderView[floor][button]
 					localHallOrder := newWorldView.OrderView[floor][button]
 
-					// Debug
-					//if floor == 0 && button == 0 {
-					//	log.Println("Incoming hallorder version:", incomingHallOrder.Version)
-					//	log.Println("Local hallorder version:", localHallOrder.Version)
-					//}
-
 					if localHallOrder.Version < 30 && incomingHallOrder.Version >= HALL_SYNC_BARRIER {
 						// Either we have just wrapped and are waiting for the others, or we are a new peer just joining
 						// In case we are a new peer, we must take OR
@@ -359,7 +341,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 						//continue
 					} else if localHallOrder.Version >= HALL_SYNC_BARRIER && incomingHallOrder.Version < 30 {
 						// Accept incoming orders that have just wrapped if we have not wrapped yet, and then we also wrap
-						log.Println("I accept a peer that has wrapped, and now wrap myself!")
+						log.Println("Accepted a peer that has wrapped, and now wrap myself!")
 						newWorldView.OrderView[floor][button].Placed = incomingHallOrder.Placed
 						newWorldView.OrderView[floor][button].Version = incomingHallOrder.Version
 						newWorldView.OrderView[floor][button].AckList = mergeAckLists(incomingHallOrder.AckList, []string{myID})
@@ -368,7 +350,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					} else {
 						if localHallOrder.Version > incomingHallOrder.Version {
 							// Ignore orders coming in that are older than you
-							log.Println("I ignored someone else")
+							log.Println("Ignored someone with older version")
 							//continue
 
 						} else if localHallOrder.Version == incomingHallOrder.Version {
@@ -378,7 +360,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 								newWorldView.OrderView[floor][button].AckList = mergeAckLists(localHallOrder.AckList, incomingHallOrder.AckList)
 								newWorldView.OrderView[floor][button].AckList = addAck(newWorldView.OrderView[floor][button].AckList, myID)
 							} else {
-								// This will in the worst case do an order twice, but never miss an order
+								// In  worst case do an order twice, but never miss an order
 								log.Println("I made a compromize with someone else")
 								newWorldView.OrderView[floor][button].Placed = (localHallOrder.Placed || incomingHallOrder.Placed)
 								// Before we were in the middle of either clearing an order or adding one,
@@ -389,11 +371,9 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 
 						} else if localHallOrder.Version < incomingHallOrder.Version {
 							// Accept orders that are newer than us
-							//log.Println("I got convinced by someone else")
 							newWorldView.OrderView[floor][button].Placed = incomingHallOrder.Placed
 							newWorldView.OrderView[floor][button].Version = incomingHallOrder.Version
 							newWorldView.OrderView[floor][button].AckList = mergeAckLists(incomingHallOrder.AckList, []string{myID})
-							//newWorldView.ElevatorState.Requests[floor][button].Version += 1 // ! Needed because we have the merged AckList now
 						}
 					}
 
@@ -453,9 +433,7 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 			myWorldView.OrderView[cabAck.Floor][elevator.N_BUTTONS-1].AckList = addAck(myWorldView.OrderView[cabAck.Floor][elevator.N_BUTTONS-1].AckList, cabAck.AckerID)
 
 		case <-ticker.C:
-			// Send myWorldView
 			networkTx <- myWorldView
-			//log.Println("Hopefully sent something!")
 
 			// needed for non-blocking
 			select {

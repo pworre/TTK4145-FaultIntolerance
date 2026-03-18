@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"log"
 	"networkDriver/peers"
-	//"os"
-	//"syscall"
 )
 
 const PEERS_PORT int = 40131
@@ -46,11 +44,6 @@ func main() {
 	// - - - - - - Initializing - - - - - - -
 	log.Printf("Initializing Elevator %s with port %d....", cfg.ID, cfg.Port)
 	startFloor := elevator.HardwareInit(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
-
-	//for elevator.GetObstruction() {
-	//	elevator.SetDoorLight(true)
-	//}
-	//elevator.SetDoorLight(false)
 
 	log.Printf("Elevator %s is now at floor %d! Joining network for service...", cfg.ID, startFloor)
 

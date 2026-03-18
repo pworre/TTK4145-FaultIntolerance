@@ -8,6 +8,9 @@ import (
 	//"os"
 )
 
+// CONTENT: This module contains finite state machine. It contains inputs such as button presses, new order-assignments, arriving floors,
+//			when door should close, when obstruction is activated, and motor stalling.
+
 // Finite state machine loop
 
 func StateMachineLoop(startFloor int,
@@ -38,7 +41,7 @@ func StateMachineLoop(startFloor int,
 			if !newState.OutOfService {
 				newState = OnNewAssignment(elev, newAssignment, localClearing, changeMotorDirection, openDoor, keepDoorOpen, startMotorStallTimer, stillActive)
 			} else {
-				log.Println("Are out of service, and stopped us from getting this assignment:", newAssignment)
+				log.Println("OUT OF SERVICE:, will not take assignments:", newAssignment)
 			}
 			stillActive <- true
 
@@ -81,7 +84,7 @@ func StateMachineLoop(startFloor int,
 
 		// Guard so it doesnt fire every single time, even without changes
 		if newState != elev {
-			localStateChange <- newState // ? Pretty sure this channel should be buffered
+			localStateChange <- newState
 		}
 		elev = newState
 
@@ -144,22 +147,7 @@ func OnNewAssignment(currentState elevator.Elevator,
 			localClearing <- elevator.ButtonEvent{Floor: nextState.Floor, Button: elevator.B_Cab}
 		}
 
-		//if nextState.OutOfService {
-		//	changeMotorDirection <- elevator.D_Stop
-		//	nextState.Direction = elevator.D_Stop
-		//	keepDoorOpen <- true
-		//	nextState.Behaviour = elevator.EB_DoorOpen
-		//}
-
 	case elevator.EB_Moving:
-		//if elevator.FloorSensor() != -1 {
-		//	if nextState.OutOfService {
-		//		changeMotorDirection <- elevator.D_Stop
-		//		nextState.Direction = elevator.D_Stop
-		//		keepDoorOpen <- true
-		//		nextState.Behaviour = elevator.EB_DoorOpen
-		//	}
-		//}
 
 	case elevator.EB_Idle:
 
@@ -185,10 +173,6 @@ func OnNewAssignment(currentState elevator.Elevator,
 			}
 
 		case elevator.EB_Moving:
-			//if !nextState.OutOfService {
-			//	changeMotorDirection <- nextState.Direction
-			//	startMotorStallTimer <- true
-			//}
 			changeMotorDirection <- nextState.Direction
 			startMotorStallTimer <- true
 			log.Println("Motorstall timer started!")
@@ -196,12 +180,6 @@ func OnNewAssignment(currentState elevator.Elevator,
 		case elevator.EB_Idle:
 		}
 
-		//if nextState.OutOfService {
-		//	changeMotorDirection <- elevator.D_Stop
-		//	nextState.Direction = elevator.D_Stop
-		//	openDoor <- true
-		//	nextState.Behaviour = elevator.EB_DoorOpen
-		//}
 	}
 
 	stillActive <- true

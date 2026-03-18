@@ -2,6 +2,10 @@ package timer
 
 import "time"
 
+// CONTENT: Timers for timer-logics for door-closing, motor-stalling and inactivity detection
+//			SafeStop- and SafeReset-functions for avoiding a signal to be on timer.C after
+//			trying to stop.
+
 const DOOR_OPEN_DURATION = 3 * time.Second
 const INACTIVITY_TIMEOUT = 9 * time.Second
 const MOTOR_STALL_TIMEOUT = 3 * time.Second
