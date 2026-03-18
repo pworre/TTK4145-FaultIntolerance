@@ -98,7 +98,7 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	lastPrimary := time.Now()
 
 	if cfg.Backup {
-		addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", processPairPort))
+		addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", processPairPort))
 		if err != nil {
 			log.Println("Failed to resolve UDP receive Addr")
 		}
@@ -162,7 +162,7 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	takeOverWorldViewCh <- state.CurrentWorldView
 	becamePrimaryCh <- true
 
-	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", processPairPort))
+	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", processPairPort))
 	if err != nil {
 		log.Println("Failed to resolve UDP send adress")
 	}
