@@ -233,6 +233,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
+			stillActive <- true
 
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 
@@ -251,12 +252,14 @@ func OnDoorTimeout(currentState elevator.Elevator,
 				closeDoor <- true
 				changeMotorDirection <- nextState.Direction
 				startMotorStallTimer <- true
+				stillActive <- true
 			}
 
 		case elevator.EB_Idle:
 			if !nextState.OutOfService {
 				closeDoor <- true
 				changeMotorDirection <- nextState.Direction
+				stillActive <- true
 			}
 		}
 
@@ -266,8 +269,6 @@ func OnDoorTimeout(currentState elevator.Elevator,
 			nextState.Direction = elevator.D_Stop
 		}
 	}
-
-	stillActive <- true
 
 	return nextState
 }

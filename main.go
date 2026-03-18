@@ -14,7 +14,6 @@ import (
 
 const PEERS_PORT int = 40131
 
-// ! Test buffersizes
 func main() {
 
 	cfg := config.ParseFlag()
@@ -22,14 +21,14 @@ func main() {
 	// - - - - - - ProcessPairs logic - - - - - - -
 
 	// Channel for storing state to backup
-	backupState := make(chan syncOrders.WorldView, 64)
+	backupState := make(chan syncOrders.WorldView, 1)
 
 	// Channels for promoting backup to primary
 	restart := make(chan bool, 1)
 	takeOver := make(chan syncOrders.WorldView, 1)
 	restartState := make(chan syncOrders.WorldView, 1)
 
-	go processPairs.RunProcessPairs(cfg, backupState, takeOver, restart)
+	go processPairs.RunProcessPairs(cfg, backupState, restart, takeOver)
 
 	if cfg.Backup {
 		log.Printf("Started PASSIVE BACKUP for elevator %s with port %d....", cfg.ID, cfg.Port)
@@ -90,9 +89,10 @@ func main() {
 	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTxEnable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest,
-		localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout,
-		restart, stillActive, worldViewCh, syncRestoreWorldViewCh)
+	go syncOrders.SynchronizationLoop(cfg.ID, startFloor,
+		localRequest, localClearing, localStateChange,
+		inactivityTimeout, peerUpdate, restartState, restart,
+		stillActive, backupState, assignEvent, setLights)
 
 	// - - - - - - Deploying timers and hardware sensors  - - - - - - -
 
@@ -109,7 +109,7 @@ func main() {
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
 		obstructionEvent, motorStallTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
-		localStateChange, allActivePeers)
+		localStateChange)
 
 	// Hardware action handling
 	for {

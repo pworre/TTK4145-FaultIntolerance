@@ -14,21 +14,6 @@ X_PORT=1567
 chmod +x hra_install.sh
 ./hra_install.sh
 
-#echo "Updating submodules..."
-#git submodule update --init --recursive
-
-#cd external/Project-resources/cost_fns/hall_request_assigner
-
-#echo "Updating submodule for D-compiler"
-#git submodule update --init --recursive
-
-#echo "Making hall_request_assigner build script executable..."
-#chmod +x build.sh
-
-#echo "Building hall_request_assigner..."
-#./build.sh ../../../../elevatorControl/hallRequestAssigner
-#cd ../../../..
-
 echo "Starting elevator server in new terminal..."
 gnome-terminal -- bash -c "elevatorserver --port=$X_PORT; exec bash"
 

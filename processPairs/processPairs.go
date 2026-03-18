@@ -1,5 +1,11 @@
 package processPairs
 
+// - - - - - - Overview - - - - - - - - -
+
+// This module contains logic for maintaining a process pairs configuration of a main.go program.
+// Upon the closing of a primary, this thread will spawn a new backup before itself transitions to primary,
+// and signal to the main backup process that it can take over as a primary
+
 import (
 	"elevator_project/config"
 	"elevator_project/syncOrders"
@@ -25,12 +31,6 @@ const (
 	PRIMARY_TIMEOUT      = 6 * BROADCAST_INTERVAL
 	PROCESSPAIR_BASEPORT = 3000
 )
-
-// CONTENT: This module is securing process pairs for restarting the program if we have timeouts.
-
-// Broadcast 255.255.255.255:<port>
-// Sending net.DialUDP
-// Receiving net.ListenUDP
 
 func spawnBackup(cfg config.Config) error {
 	port := cfg.Port
@@ -83,7 +83,7 @@ func spawnBackup(cfg config.Config) error {
 	}
 }
 
-func RunProcessPairs(cfg config.Config, backupState <-chan syncOrders.WorldView, takeOver chan syncOrders.WorldView, restart chan bool) {
+func RunProcessPairs(cfg config.Config, primaryUpdate <-chan syncOrders.WorldView, restart chan bool, takeOver chan syncOrders.WorldView) {
 
 	peerID_int, err := strconv.Atoi(cfg.ID)
 	if err != nil {
@@ -108,7 +108,6 @@ func RunProcessPairs(cfg config.Config, backupState <-chan syncOrders.WorldView,
 			log.Println("Failed to connect UDP listener:", err)
 			return
 		}
-		//defer conn.Close()
 
 		// Backup loop
 		buf := make([]byte, 1024)
@@ -175,7 +174,7 @@ func RunProcessPairs(cfg config.Config, backupState <-chan syncOrders.WorldView,
 	// Primary loop
 	for {
 		select {
-		case latestWorldView := <-backupWorldView:
+		case latestWorldView := <-primaryUpdate:
 			state.CurrentWorldView = latestWorldView
 
 		case <-restart:
