@@ -7,7 +7,7 @@ git submodule update --init --recursive || \
 git submodule update --init --recursive --remote
 
 # Paths
-PROJECT_ROOT="$(pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HRA_PATH="$PROJECT_ROOT/elevatorControl/hallRequestAssigner"
 D_SRC_PATH="$PROJECT_ROOT/external/Project-resources/cost_fns/hall_request_assigner"
 JSONX_PATH="$D_SRC_PATH/d-json"
