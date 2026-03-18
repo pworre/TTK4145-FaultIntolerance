@@ -319,7 +319,7 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		}
 	}
 
-	//stillActive <- true
+	stillActive <- true
 
 	return nextState
 }

@@ -45,7 +45,7 @@ type CabRestore struct {
 	CabOrders [elevator.N_FLOORS]Order
 }
 
-const HALL_SYNC_BARRIER = 70
+const HALL_SYNC_BARRIER = 60000
 
 const TRANSMIT_INTERVAL = 50 * time.Millisecond
 
@@ -340,10 +340,10 @@ func SynchronizationLoop(startFloor int, cfg config.Config, localStateChange cha
 					localHallOrder := newWorldView.OrderView[floor][button]
 
 					// Debug
-					if floor == 0 && button == 0 {
-						log.Println("Incoming hallorder version:", incomingHallOrder.Version)
-						log.Println("Local hallorder version:", localHallOrder.Version)
-					}
+					//if floor == 0 && button == 0 {
+					//	log.Println("Incoming hallorder version:", incomingHallOrder.Version)
+					//	log.Println("Local hallorder version:", localHallOrder.Version)
+					//}
 
 					if localHallOrder.Version < 30 && incomingHallOrder.Version >= HALL_SYNC_BARRIER {
 						// Either we have just wrapped and are waiting for the others, or we are a new peer just joining

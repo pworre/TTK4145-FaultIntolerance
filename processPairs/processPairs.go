@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -29,7 +30,6 @@ const (
 // Sending net.DialUDP
 // Receiving net.ListenUDP
 
-/*
 func spawnBackup(cfg config.Config) error {
 	port := cfg.Port
 	id := cfg.ID
@@ -41,8 +41,12 @@ func spawnBackup(cfg config.Config) error {
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmdStr := fmt.Sprintf(`tell app "Terminal" to do script "cd %q; go run main.go -id=%q -port=%d"`, dir, id, port)
+		cmdStr := fmt.Sprintf(
+			`tell application "Terminal" to do script "cd '%s'; go run . -id=%s -port=%d -backup"`,
+			dir, id, port,
+		)
 		return exec.Command("osascript", "-e", cmdStr).Run()
+
 	case "linux":
 		if _, err := exec.LookPath("gnome-terminal"); err == nil {
 			cmd := exec.Command(
@@ -50,7 +54,7 @@ func spawnBackup(cfg config.Config) error {
 				"--",
 				"bash",
 				"-c",
-				fmt.Sprintf("cd %q && go run main.go -id=%q -port=%d; exec bash", dir, id, port),
+				fmt.Sprintf("cd %q && go run main.go -id=%q -port=%d -backup; exec bash", dir, id, port),
 			)
 			return cmd.Start()
 		}
@@ -60,7 +64,9 @@ func spawnBackup(cfg config.Config) error {
 			cmd := exec.Command(
 				"x-terminal-emulator",
 				"-e",
-				fmt.Sprintf("bash -c 'cd %q && go run main.go -id=%q -port=%d; exec bash'", dir, id, port),
+				"bash",
+				"-c",
+				fmt.Sprintf("cd %q && go run main.go -id=%q -port=%d -backup; exec bash", dir, id, port),
 			)
 			return cmd.Start()
 		}
@@ -69,12 +75,13 @@ func spawnBackup(cfg config.Config) error {
 
 	case "windows":
 		return fmt.Errorf("windows not implemented")
+
 	default:
 		return fmt.Errorf("OS not supported")
 	}
 }
-*/
 
+/*
 func spawnBackup(cfg config.Config) error {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -105,6 +112,7 @@ func spawnBackup(cfg config.Config) error {
 	log.Printf("Spawned backup PID=%d", cmd.Process.Pid)
 	return nil
 }
+*/
 
 func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView, takeOverWorldViewCh chan syncOrders.WorldView, becamePrimaryCh chan bool, restart chan bool) {
 
@@ -177,13 +185,13 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 		state.CurrentWorldView.PeerID = cfg.ID
 	}
 
-	log.Printf("Sending restored worldview with cab orders: %+v", state.CurrentWorldView)
-	takeOverWorldViewCh <- state.CurrentWorldView
-	becamePrimaryCh <- true
-
 	if err := spawnBackup(cfg); err != nil {
 		log.Println("Failed to spawn backup:", err)
 	}
+
+	log.Printf("Sending restored worldview with cab orders: %+v", state.CurrentWorldView)
+	takeOverWorldViewCh <- state.CurrentWorldView
+	becamePrimaryCh <- true
 
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", processPairPort))
 	if err != nil {
