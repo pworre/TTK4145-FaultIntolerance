@@ -10,8 +10,6 @@ import (
 // CONTENT: This module contains finite state machine. It contains inputs such as button presses, new order-assignments, arriving floors,
 //			when door should close, when obstruction is activated, and motor stalling.
 
-// Finite state machine loop
-
 func StateMachineLoop(startFloor int,
 	buttonEvent chan elevator.ButtonEvent,
 	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
