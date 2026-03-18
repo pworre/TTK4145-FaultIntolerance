@@ -29,8 +29,10 @@ chmod +x hra_install.sh
 #./build.sh ../../../../elevatorControl/hallRequestAssigner
 #cd ../../../..
 
-echo "Starting elevator server..."
-elevatorserver --port=$X_PORT &
+echo "Starting elevator server in new terminal..."
+gnome-terminal -- bash -c "elevatorserver --port=$X_PORT; exec bash"
+
+sleep 1
 
 echo "Running Go program..."
 go run main.go --id=$X_ID --port=$X_PORT
