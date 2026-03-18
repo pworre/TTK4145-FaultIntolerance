@@ -54,7 +54,7 @@ func spawnBackup(cfg config.Config) error {
 				"--",
 				"bash",
 				"-c",
-				fmt.Sprintf("cd %q && go run main.go -id=%q -port=%d -backup; exec bash", dir, id, port),
+				fmt.Sprintf("cd %q && go run main.go -id=%q -port=%d -backup; exit", dir, id, port),
 			)
 			return cmd.Start()
 		}
