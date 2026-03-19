@@ -253,15 +253,15 @@ func SynchronizationLoop(myID string, startFloor int,
 				myWorldView.OrderView[floor][elevator.N_BUTTONS-1] = restoredCabOrder
 			}
 
-		case myWorldView := <-restartWorldView:
+		case myWorldView = <-restartWorldView:
 
-			// ! What, just comment...?
-			// If we have restarted
-			for floor := 0; floor < elevator.N_FLOORS; floor++ {
-				myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList = addAck(myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList, myID)
-				lastConfirmedPlacements[floor][elevator.N_BUTTONS-1] = myWorldView.OrderView[floor][elevator.N_BUTTONS-1].Placed
-			}
-			shouldReassign = true
+			//// ! What, just comment...?
+			//// If we have restarted
+			//for floor := 0; floor < elevator.N_FLOORS; floor++ {
+			//	myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList = addAck(myWorldView.OrderView[floor][elevator.N_BUTTONS-1].AckList, myID)
+			//	lastConfirmedPlacements[floor][elevator.N_BUTTONS-1] = myWorldView.OrderView[floor][elevator.N_BUTTONS-1].Placed
+			//}
+			//shouldReassign = true
 
 		case incomingWorldView := <-networkRx:
 			// Ignore my own rebroadcasts
