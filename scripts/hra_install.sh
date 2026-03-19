@@ -1,19 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
-set -e  # Exit immediately if a command fails
-
-echo "Updating submodules..."
-git submodule sync --recursive
-git submodule update --init --recursive || \
-git submodule update --init --recursive --remote
-
-# Paths
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HRA_PATH="$PROJECT_ROOT/elevatorControl/hallRequestAssigner"
 D_SRC_PATH="$PROJECT_ROOT/external/Project-resources/cost_fns/hall_request_assigner"
 JSONX_PATH="$D_SRC_PATH/d-json"
 
-# Make sure the output folder exists
+if [ ! -d "$D_SRC_PATH" ]; then
+    echo "Error: Missing hall_request_assigner sources at:"
+    echo "  $D_SRC_PATH"
+    echo
+    echo "This archive must include the contents of the submodule:"
+    echo "  external/Project-resources"
+    exit 1
+fi
+
 mkdir -p "$HRA_PATH"
 
 echo "Cleaning old binaries and object files..."
