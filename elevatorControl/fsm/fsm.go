@@ -22,9 +22,9 @@ func StateMachineLoop(startFloor int,
 	openDoor chan bool, closeDoor chan bool,
 	keepDoorOpen chan bool, doorTimeout chan bool,
 	obstructionEvent chan bool, motorStallTimeout chan bool,
-	startMotorStallTimer chan bool,
+	inactivityTimeout chan bool, startMotorStallTimer chan bool,
 	noMotorStall chan bool, stillActive chan bool,
-	stateChange chan elevator.Elevator) {
+	restart chan bool, stateChange chan elevator.Elevator) {
 
 	elev := elevator.NewStartElevator(startFloor)
 
@@ -62,6 +62,10 @@ func StateMachineLoop(startFloor int,
 				newState.OutOfService = true
 			}
 			stillActive <- true
+
+		case <-inactivityTimeout:
+			restart <- true
+
 		}
 
 		// Only output statechange if we actually changed state
@@ -233,7 +237,9 @@ func OnDoorTimeout(currentState elevator.Elevator,
 		switch nextState.Behaviour {
 		case elevator.EB_DoorOpen:
 			keepDoorOpen <- true
-			stillActive <- true
+			if !nextState.OutOfService {
+				stillActive <- true
+			}
 
 			shouldClearUpButton, shouldClearDownButton, shouldClearCabButton := requests.WhichButtonsShouldClear(nextState)
 

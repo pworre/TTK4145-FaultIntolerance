@@ -91,8 +91,8 @@ func main() {
 
 	go syncOrders.SynchronizationLoop(cfg.ID, startFloor,
 		localRequest, localClearing, localStateChange,
-		inactivityTimeout, peerUpdate, restartState, restart,
-		stillActive, backupState, assignEvent, setLights)
+		peerUpdate, restartState, stillActive, backupState,
+		assignEvent, setLights)
 
 	// - - - - - - Deploying timers and hardware sensors  - - - - - - -
 
@@ -104,12 +104,11 @@ func main() {
 	// - - - - - - Deploying local finite state machine transition logic and hardware handling - - - - - - -
 
 	go fsm.StateMachineLoop(startFloor, buttonEvent,
-		assignEvent, localRequest, localClearing,
-		floorEvent, setFloorIndicator, changeMotorDirection,
-		openDoor, closeDoor, keepDoorOpen, doorTimeout,
-		obstructionEvent, motorStallTimeout,
-		startMotorStallTimer, noMotorStall, stillActive,
-		localStateChange)
+		assignEvent, localRequest, localClearing, floorEvent,
+		setFloorIndicator, changeMotorDirection, openDoor,
+		closeDoor, keepDoorOpen, doorTimeout, obstructionEvent,
+		motorStallTimeout, inactivityTimeout, startMotorStallTimer,
+		noMotorStall, stillActive, restart, localStateChange)
 
 	// Hardware action handling
 	for {

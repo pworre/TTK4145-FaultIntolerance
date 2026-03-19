@@ -55,9 +55,8 @@ const CAB_RESTORE_BCAST_PORT = 40106
 
 func SynchronizationLoop(myID string, startFloor int,
 	localRequest chan elevator.ButtonEvent, localClearing chan elevator.ButtonEvent,
-	localStateChange chan elevator.Elevator, inactivityTimeout chan bool,
-	peerUpdate chan peers.PeerUpdate, restartWorldView chan WorldView,
-	restart chan bool, stillActive chan bool, backupStore chan WorldView,
+	localStateChange chan elevator.Elevator, peerUpdate chan peers.PeerUpdate,
+	restartWorldView chan WorldView, stillActive chan bool, backupStore chan WorldView,
 	assignEvent chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool,
 	setLights chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool) {
 
@@ -134,14 +133,6 @@ func SynchronizationLoop(myID string, startFloor int,
 		case newLocalState := <-localStateChange:
 			myWorldView.ElevatorState = newLocalState
 			shouldReassign = true
-
-		case <-inactivityTimeout:
-			// Can only restart if we are not alone
-			if len(activePeersList) > 0 {
-				restart <- true
-			} else {
-				stillActive <- true
-			}
 
 		case newPeerUpdate := <-peerUpdate:
 			oldActivePeersList := activePeersList
