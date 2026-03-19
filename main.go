@@ -54,6 +54,7 @@ func main() {
 	doorTimeout := make(chan bool)
 	obstructionEvent := make(chan bool)
 	motorStallTimeout := make(chan bool)
+	inactivityTimeout := make(chan bool)
 
 	// Output message channels for performing actions on elevator hardware
 	setFloorIndicator := make(chan int)
@@ -76,9 +77,6 @@ func main() {
 	localRequest := make(chan elevator.ButtonEvent)
 	localClearing := make(chan elevator.ButtonEvent)
 	localStateChange := make(chan elevator.Elevator, 64)
-
-	// Output message channel for detecting inactivity errors
-	inactivityTimeout := make(chan bool)
 
 	// Channels for maintaining which peers are connected to the network
 	peersTxEnable := make(chan bool)
