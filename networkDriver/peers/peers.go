@@ -16,7 +16,7 @@ type PeerUpdate struct {
 }
 
 const interval = 15 * time.Millisecond
-const timeout = 500 * time.Millisecond
+const timeout = 100 * interval
 
 func Transmitter(port int, id string, transmitEnable <-chan bool) {
 

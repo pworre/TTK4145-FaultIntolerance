@@ -40,7 +40,6 @@ func StateMachineLoop(startFloor int,
 			} else {
 				log.Println("OUT OF SERVICE, will not take assignments")
 			}
-			stillActive <- true
 
 		case newFloor := <-floorEvent:
 			newState = OnFloorArrival(elev, newFloor, setFloorIndicator, newClearing, changeMotorDirection, openDoor, startMotorStallTimer, noMotorStall, stillActive)
