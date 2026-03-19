@@ -2,6 +2,9 @@
 
 set -e
 
+# Move into scripts directory if not already
+cd "$(dirname "$0")"
+
 # Check that ID argument is provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <x_id>"
