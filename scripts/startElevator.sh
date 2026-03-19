@@ -2,8 +2,8 @@
 
 set -e
 
-# Move into scripts directory if not already
-cd "$(dirname "$0")"
+# Move into root directory if not already
+cd "$(dirname "$0")/.."
 
 # Check that ID argument is provided
 if [ -z "$1" ]; then
