@@ -4,7 +4,7 @@ Elevator project for the course TTK4145 - Real-time Programming at NTNU. This a 
 
 ## Overview
 
-|                       General information                           |
+| General information |                                               |
 |---------------------|-----------------------------------------------|
 | Course              | TTK4145 – Real-time programming               |
 | Project type        | Distributed Elevator Control System           |
@@ -37,10 +37,20 @@ Since we have git submodules you need to clone the repository recursively:
 
 ## Deployment
 
-To deploy the elevator you first run the elevatorserver (or simulator):
+To deploy an elevator instance, simply run `./scripts/build.sh myID`, where `myID` specifies the ID of that instance.
 
-`elevatorserver --port=myport`
+If you have already built the `hall_request_assigner`, you can instead run `./scripts/startElevator.sh myID`
 
-and then run the elevator program:
+## Manual Deployment
 
-`go run main.go --id=myid --port=myport`
+To deploy the elevator manually you must first build the `hall_request_assigner`:
+
+`./scripts/hra_install.sh`
+
+In a separate terminal window, start the elevatorserver (or simulator):
+
+`elevatorserver --port=myPORT`
+
+and then from the root directory, run the elevator program:
+
+`go run main.go --id=myID --port=myPORT`
