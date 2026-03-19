@@ -149,7 +149,6 @@ func RunProcessPairs(cfg config.Config, primaryUpdate <-chan syncOrders.WorldVie
 	state.IsPrimary = true
 
 	if state.CurrentWorldView.PeerID == "" {
-		log.Println("Trying to restore empty id")
 		state.CurrentWorldView.PeerID = cfg.ID
 	}
 
@@ -157,7 +156,6 @@ func RunProcessPairs(cfg config.Config, primaryUpdate <-chan syncOrders.WorldVie
 		log.Println("Failed to spawn backup:", err)
 	}
 
-	log.Printf("Sending restored worldview with cab orders: %+v", state.CurrentWorldView)
 	takeOver <- state.CurrentWorldView
 
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.2:%d", processPairPort))
