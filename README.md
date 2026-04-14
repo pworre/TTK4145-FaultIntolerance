@@ -1,24 +1,56 @@
-# TTK4145 - Sanntidsprogrammering
-## Heislabb
-### Project Information
+# TTK4145 - Elevator project
 
-| Category            | Description                                   |
+Elevator project for the course TTK4145 - Real-time Programming at NTNU. This a distributed system which is designed to control multiple elevators on a network concurrently in a fault-tolerant manner. 
+
+## Overview
+
+| General information |                                               |
 |---------------------|-----------------------------------------------|
 | Course              | TTK4145 – Real-time programming               |
-| Project             | Distributed Elevator Control System           |
-| Architecture        | Peer-to-Peer (P2P)                            |
-| Programming Language| Go (Golang)                                   |
-| Communication       | UDP Broadcast                                 |
-| Network Port        | 34933 (UDP)                                   |
-| Number of Elevators | 1–n (scalable design)                         |
-| Floors              | 4                                             |
-| Fault Tolerance     | Application-level (timeouts and state sharing)|
+| Project type        | Distributed Elevator Control System           |
 | Authors             | Hans Tomren, Paul Eirik Worre, Oscar Skjelvik |
 | Institution         | NTNU                                          |
 | Year                | 2026                                          |
 
 ---
-### Network Topology
-For this project, we are using peer-to-peers (P2P) by having all elevators as equal nodes, sharing their orders and state between eachother. This design removes single points of failure and improves fault tolerance. 
+### Implementation overview
 
-The communication is based on **UDP Broadcast**. Every client is listening on the same predefined port (e.g. `34933`) and periodically transmits messages to the broadcast-adress `255.255.255.255:34933`. This broadcast-method enables a automatic peer discovery and makes it simpler to join or rejoin the network.  
+This program uses a peer-to-peer (P2P) network topology to create redundancy in the distributed control system. Each peer is connected to its own elevator instance, and states are shared and synchronized between peers. This allows the system to perform forward error recovery and keep functioning, even in the event of any/all errors.
+
+The network communication uses **UDP Broadcast**. Every client is listening on the same predefined port and periodically transmits messages via broadcast to this same port. This enables automatic peer discovery, and puts no bound on the number of peers that can be connected to the network.
+
+## Dependencies
+
+This project requires the following dependencies to be installed on the host machine:
+- `elevatorserver` (for the physical elevator hardware) or [`simelevatorserver`](https://github.com/TTK4145/Simulator-v2)
+ needs to be installed and in the path of the root user
+- `golang` >= 1.25
+- `dmd` D-lang compiler for the hall request assigner
+
+To build and install the `hall_request_assigner` run the following command:
+`./scripts/hra_install.sh`
+
+## Cloning the repository
+
+Since we have git submodules you need to clone the repository recursively:
+`git clone --recursive link.to.repo.git`
+
+## Deployment
+
+To deploy an elevator instance, simply run `./scripts/build.sh myID`, where `myID` specifies the ID of that instance.
+
+If you have already built the `hall_request_assigner`, you can instead run `./scripts/startElevator.sh myID`
+
+## Manual Deployment
+
+To deploy the elevator manually you must first build the `hall_request_assigner`:
+
+`./scripts/hra_install.sh`
+
+In a separate terminal window, start the elevatorserver (or simulator):
+
+`elevatorserver --port=myPORT`
+
+and then from the root directory, run the elevator program:
+
+`go run main.go --id=myID --port=myPORT`

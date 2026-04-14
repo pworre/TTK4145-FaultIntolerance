@@ -1,39 +1,10 @@
 package requests
 
+// - - - - - - Overview - - - - - - - - -
+
+// This module cointains pure functions that return logic decisions based on an elevator instance
+
 import "elevatorControl/elevator"
-
-/*
-func requestsAbove(e elevator.Elevator) bool {
-	for f := e.Floor + 1; f < elevator.N_FLOORS; f++ {
-		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-			if e.Requests[f][btn].Placed {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func requestsBelow(e elevator.Elevator) bool {
-	for f := 0; f < e.Floor; f++ {
-		for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-			if e.Requests[f][btn].Placed {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func requestsHere(e elevator.Elevator) bool {
-	for btn := 0; btn < elevator.N_BUTTONS; btn++ {
-		if e.Requests[e.Floor][btn].Placed {
-			return true
-		}
-	}
-	return false
-}
-*/
 
 func requestsAbove(e elevator.Elevator) bool {
 	for f := e.Floor + 1; f < elevator.N_FLOORS; f++ {
@@ -106,28 +77,6 @@ func ChooseDirection(e elevator.Elevator) (elevator.MotorDirection, elevator.Ele
 	}
 }
 
-/*
-func ShouldStop(e elevator.Elevator) bool {
-	switch e.Direction {
-	case elevator.D_Down:
-		return e.Requests[e.Floor][elevator.B_HallDown].Placed ||
-			e.Requests[e.Floor][elevator.B_Cab].Placed ||
-			!requestsBelow(e)
-
-	case elevator.D_Up:
-		return e.Requests[e.Floor][elevator.B_HallUp].Placed ||
-			e.Requests[e.Floor][elevator.B_Cab].Placed ||
-			!requestsAbove(e)
-
-	case elevator.D_Stop:
-		return true
-
-	default:
-		return true
-	}
-}
-*/
-
 func ShouldStop(e elevator.Elevator) bool {
 	switch e.Direction {
 	case elevator.D_Down:
@@ -163,28 +112,3 @@ func WhichButtonsShouldClear(e elevator.Elevator) (bool, bool, bool) {
 
 	return shouldClearUpButton, shouldClearDownButton, shouldClearCabButton
 }
-
-/*
-func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
-	e.Requests[e.Floor][elevator.B_Cab] = false
-	switch e.Direction {
-	case elevator.D_Up:
-		if !requestsAbove(e) && !e.Requests[e.Floor][elevator.B_HallUp] {
-			e.Requests[e.Floor][elevator.B_HallDown] = false
-		}
-		e.Requests[e.Floor][elevator.B_HallUp] = false
-
-	case elevator.D_Down:
-		if !requestsBelow(e) && !e.Requests[e.Floor][elevator.B_HallDown] {
-			e.Requests[e.Floor][elevator.B_HallUp] = false
-		}
-		e.Requests[e.Floor][elevator.B_HallDown] = false
-
-	case elevator.D_Stop:
-		e.Requests[e.Floor][elevator.B_HallUp] = false
-		e.Requests[e.Floor][elevator.B_HallDown] = false
-	}
-
-	return e
-}
-*/

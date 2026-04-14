@@ -1,5 +1,11 @@
 package processPairs
 
+// - - - - - - Overview - - - - - - - - -
+
+// This module contains logic for maintaining a process pairs configuration of a main.go program.
+// Upon the closing of a primary, this thread will spawn a new backup before itself transitions to primary,
+// and signal to the main backup process that it can take over as a primary
+
 import (
 	"elevator_project/config"
 	"elevator_project/syncOrders"
@@ -25,12 +31,6 @@ const (
 	PRIMARY_TIMEOUT      = 6 * BROADCAST_INTERVAL
 	PROCESSPAIR_BASEPORT = 3000
 )
-
-// CONTENT: This module is securing process pairs for restarting the program if we have timeouts.
-
-// Broadcast 255.255.255.255:<port>
-// Sending net.DialUDP
-// Receiving net.ListenUDP
 
 func spawnBackup(cfg config.Config) error {
 	port := cfg.Port
@@ -76,14 +76,14 @@ func spawnBackup(cfg config.Config) error {
 		return fmt.Errorf("No supperted terminal for linux")
 
 	case "windows":
-		return fmt.Errorf("windows not implemented")
+		return fmt.Errorf("Windows not implemented")
 
 	default:
 		return fmt.Errorf("OS not supported")
 	}
 }
 
-func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView, takeOverWorldViewCh chan syncOrders.WorldView, becamePrimaryCh chan bool, restart chan bool) {
+func RunProcessPairs(cfg config.Config, primaryUpdate <-chan syncOrders.WorldView, restart chan bool, takeOver chan syncOrders.WorldView) {
 
 	peerID_int, err := strconv.Atoi(cfg.ID)
 	if err != nil {
@@ -108,7 +108,6 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 			log.Println("Failed to connect UDP listener:", err)
 			return
 		}
-		//defer conn.Close()
 
 		// Backup loop
 		buf := make([]byte, 1024)
@@ -150,7 +149,6 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	state.IsPrimary = true
 
 	if state.CurrentWorldView.PeerID == "" {
-		log.Println("Trying to restore empty id")
 		state.CurrentWorldView.PeerID = cfg.ID
 	}
 
@@ -158,9 +156,7 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 		log.Println("Failed to spawn backup:", err)
 	}
 
-	log.Printf("Sending restored worldview with cab orders: %+v", state.CurrentWorldView)
-	takeOverWorldViewCh <- state.CurrentWorldView
-	becamePrimaryCh <- true
+	takeOver <- state.CurrentWorldView
 
 	sendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.2:%d", processPairPort))
 	if err != nil {
@@ -176,25 +172,24 @@ func RunProcessPairs(cfg config.Config, worldViewCh <-chan syncOrders.WorldView,
 	// Primary loop
 	for {
 		select {
-		case latestWorldView := <-worldViewCh:
+		case latestWorldView := <-primaryUpdate:
 			state.CurrentWorldView = latestWorldView
 
-		case needRestart := <-restart:
-			if needRestart {
-				state.Restart = true
+		case <-restart:
+			state.Restart = true
 
-				// Send one last state and end
-				data, err := json.Marshal(state)
-				if err == nil {
-					_, err = sendConn.Write(data)
-					if err != nil {
-						log.Println("Failed to send restart state:", err)
-					}
+			// Send one last state and end
+			data, err := json.Marshal(state)
+			if err == nil {
+				_, err = sendConn.Write(data)
+				if err != nil {
+					log.Println("Failed to send restart state:", err)
 				}
-
-				log.Println("Primary requested restart!")
-				os.Exit(0)
 			}
+
+			log.Println("Primary requested restart!")
+			os.Exit(0)
+
 		default:
 		}
 

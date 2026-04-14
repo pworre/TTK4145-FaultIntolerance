@@ -10,7 +10,6 @@ import (
 
 const bufSize = 4 * 1024
 
-// Transmitter takes in port, and one or multiple channels for transmitting.
 // Encodes received values from `chans` into type-tagged JSON, then broadcasts
 // it on `port`
 func Transmitter(port int, chans ...interface{}) {

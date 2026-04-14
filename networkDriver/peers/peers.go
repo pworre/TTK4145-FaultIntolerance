@@ -1,18 +1,14 @@
 package peers
 
 import (
-	"networkDriver/conn"
 	"fmt"
+	"log"
 	"net"
+	"networkDriver/conn"
 	"sort"
 	"time"
-	"log"
 )
 
-// Change in a set of known peers on the network
-// - Peers: full list of all currently active peers' ID
-// - New: ID of a newly discovered peer. Empty if none. 
-// - Lost: IDs of timedOut peers. Considered disconnected
 type PeerUpdate struct {
 	Peers []string
 	New   string
@@ -22,13 +18,6 @@ type PeerUpdate struct {
 const interval = 15 * time.Millisecond
 const timeout = 500 * time.Millisecond
 
-// Transmitter periodically broadcasts the local peer's ID over the UDP broadcast.
-// Peer discovery and failure detection in a distributed system
-//
-// PARAMS: 	
-// port = used for peer discovery,	
-// id = identifier of this peer,	
-// transmitEnable = bool for sending
 func Transmitter(port int, id string, transmitEnable <-chan bool) {
 
 	conn := conn.DialBroadcastUDP(port)
@@ -46,12 +35,6 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 	}
 }
 
-// Receiver listens for UDP broadcast msg from other peers.
-// It detects new and lost peers using TimeOuts and maintaina a list of active peers.
-// Transmits update on peerUpdateCh when detects changes. 
-//
-// PARAMS: 
-// port = 
 func Receiver(port int, myID string, peerUpdateCh chan<- PeerUpdate) {
 
 	var buf [1024]byte

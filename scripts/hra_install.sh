@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e  # Exit immediately if a command fails
 
 echo "Updating submodules..."

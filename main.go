@@ -20,41 +20,39 @@ func main() {
 
 	// - - - - - - ProcessPairs logic - - - - - - -
 
-	worldViewCh := make(chan syncOrders.WorldView, 64)
-	takeOverWorldViewCh := make(chan syncOrders.WorldView, 64)
-	syncRestoreWorldViewCh := make(chan syncOrders.WorldView, 64)
-	becamePrimaryCh := make(chan bool, 64)
-	restart := make(chan bool, 64)
+	// Channel for storing state to backup
+	backupState := make(chan syncOrders.WorldView, 1)
 
-	go processPairs.RunProcessPairs(cfg, worldViewCh, takeOverWorldViewCh, becamePrimaryCh, restart)
+	// Channels for promoting backup to primary
+	restart := make(chan bool, 1)
+	takeOver := make(chan syncOrders.WorldView, 1)
+	restartState := make(chan syncOrders.WorldView, 1)
+
+	go processPairs.RunProcessPairs(cfg, backupState, restart, takeOver)
 
 	if cfg.Backup {
-		log.Printf("Starting PASSIVE BACKUP for elevator %s with port %d....", cfg.ID, cfg.Port)
+		log.Printf("Started PASSIVE BACKUP for elevator %s with port %d....", cfg.ID, cfg.Port)
 
-		takeOverWorldView := <-takeOverWorldViewCh
-		<-becamePrimaryCh // Block until we get promoted to primary
+		takeOverState := <-takeOver // Block until we get promoted to primary
 
 		log.Printf("Backup for elevator %s taking over as primary", cfg.ID)
-		syncRestoreWorldViewCh <- takeOverWorldView
-
-	} else {
-		log.Printf("Starting PRIMARY elevator %s with port %d....", cfg.ID, cfg.Port)
+		restartState <- takeOverState
 	}
 
 	// - - - - - - Initializing - - - - - - -
+
 	log.Printf("Initializing Elevator %s with port %d....", cfg.ID, cfg.Port)
 	startFloor := elevator.HardwareInit(fmt.Sprintf("localhost:%d", cfg.Port), elevator.N_FLOORS)
-
 	log.Printf("Elevator %s is now at floor %d! Joining network for service...", cfg.ID, startFloor)
 
 	// - - - - - - Channels - - - - - - - - -
 
 	// Input message channels for events in finite state machine
-	obstructionEvent := make(chan bool)
 	buttonEvent := make(chan elevator.ButtonEvent)
+	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 64)
 	floorEvent := make(chan int)
 	doorTimeout := make(chan bool)
-	inactivityTimeout := make(chan bool)
+	obstructionEvent := make(chan bool)
 	motorStallTimeout := make(chan bool)
 
 	// Output message channels for performing actions on elevator hardware
@@ -64,49 +62,54 @@ func main() {
 	openDoor := make(chan bool)
 	closeDoor := make(chan bool)
 	keepDoorOpen := make(chan bool)
-	stillActive := make(chan bool)
 
 	// Output message channel for performing actions on timer instance
 	resetDoorTimer := make(chan bool)
 	resetInactivityTimer := make(chan bool)
+	resetMotorStallTimer := make(chan bool)
 	startMotorStallTimer := make(chan bool)
 	stopMotorStallTimer := make(chan bool)
-	resetMotorStallTimer := make(chan bool)
 	noMotorStall := make(chan bool)
+	stillActive := make(chan bool)
 
-	// Channels for orders
-	assignEvent := make(chan [elevator.N_FLOORS][elevator.N_BUTTONS]bool, 512)
-
+	// Input message channels for synchronization
 	localRequest := make(chan elevator.ButtonEvent)
 	localClearing := make(chan elevator.ButtonEvent)
+	localStateChange := make(chan elevator.Elevator, 64)
 
-	localStateChange := make(chan elevator.Elevator, 512)
+	// Output message channel for detecting inactivity errors
+	inactivityTimeout := make(chan bool)
 
-	// Channels for P2P
-	peersTx_enable := make(chan bool)
-	peerUpdate := make(chan peers.PeerUpdate, 512)
-	allActivePeers := make(chan []string, 1)
+	// Channels for maintaining which peers are connected to the network
+	peersTxEnable := make(chan bool)
+	peerUpdate := make(chan peers.PeerUpdate, 64)
+
 	// - - - - - - Deploying network communication and order synchronization - - - - - -
-	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTx_enable)
+
+	go peers.Transmitter(PEERS_PORT, cfg.ID, peersTxEnable)
 	go peers.Receiver(PEERS_PORT, cfg.ID, peerUpdate)
 
-	go syncOrders.SynchronizationLoop(startFloor, cfg, localStateChange, assignEvent, localRequest, localClearing, peerUpdate, setLights, allActivePeers, inactivityTimeout, restart, stillActive, worldViewCh, syncRestoreWorldViewCh)
+	go syncOrders.SynchronizationLoop(cfg.ID, startFloor,
+		localRequest, localClearing, localStateChange,
+		inactivityTimeout, peerUpdate, restartState, restart,
+		stillActive, backupState, assignEvent, setLights)
 
-	// - - - - - - Deploying hardware sensors and timers  - - - - - - -
+	// - - - - - - Deploying timers and hardware sensors  - - - - - - -
 
 	go timer.Timers(resetDoorTimer, resetInactivityTimer, resetMotorStallTimer, stopMotorStallTimer, doorTimeout, inactivityTimeout, motorStallTimeout)
 	go elevator.PollButtons(buttonEvent)
 	go elevator.PollFloorSensor(floorEvent)
 	go elevator.PollObstructionSwitch(obstructionEvent)
 
-	// Local finite state machine transition logic
+	// - - - - - - Deploying local finite state machine transition logic and hardware handling - - - - - - -
+
 	go fsm.StateMachineLoop(startFloor, buttonEvent,
 		assignEvent, localRequest, localClearing,
 		floorEvent, setFloorIndicator, changeMotorDirection,
 		openDoor, closeDoor, keepDoorOpen, doorTimeout,
 		obstructionEvent, motorStallTimeout,
 		startMotorStallTimer, noMotorStall, stillActive,
-		localStateChange, allActivePeers)
+		localStateChange)
 
 	// Hardware action handling
 	for {
@@ -131,14 +134,14 @@ func main() {
 		case <-keepDoorOpen:
 			resetDoorTimer <- true
 
-		case <-stillActive:
-			resetInactivityTimer <- true
+		case <-startMotorStallTimer:
+			resetMotorStallTimer <- true
 
 		case <-noMotorStall:
 			stopMotorStallTimer <- true
 
-		case <-startMotorStallTimer:
-			resetMotorStallTimer <- true
+		case <-stillActive:
+			resetInactivityTimer <- true
 
 		}
 	}
